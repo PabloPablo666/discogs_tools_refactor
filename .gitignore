@@ -1,0 +1,22 @@
+# Data / outputs
+hive-data/
+_tmp_test/
+raw/
+data/
+*.parquet
+*.xml
+*.xml.gz
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+.venvs/
+.env
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
