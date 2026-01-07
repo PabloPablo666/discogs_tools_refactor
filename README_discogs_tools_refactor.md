@@ -146,6 +146,26 @@ Sanity tests are designed to:
 
 ---
 
+# Discogs data dumps (input)
+
+Pipelines in this repository consume the official Discogs XML dumps
+(`*.xml.gz`) as input.
+
+These files must be downloaded manually from the Discogs data dumps page
+and are **not included** in this repository for licensing reasons.
+
+You can find them at:
+
+https://discogs-data-dumps.s3.us-west-2.amazonaws.com/index.html?prefix=data/
+
+Typical inputs include:
+- `discogs_YYYYMMDD_artists.xml.gz`
+- `discogs_YYYYMMDD_masters.xml.gz`
+- `discogs_YYYYMMDD_releases.xml.gz`
+- `discogs_YYYYMMDD_labels.xml.gz`
+
+---
+
 ## ▶️ Running a pipeline test
 
 Example: **artists**
