@@ -2,22 +2,12 @@
 """
 Discogs → artists_v1 (Parquet)
 
-Streaming parse of the Discogs artists XML dump (gzipped) to Parquet, aligned with:
-hive.discogs.artists_v1
+Streaming parse of the Discogs artists XML dump (gzipped) to Parquet.
 
-Output columns (strings):
-- artist_id
-- name
-- realname
-- profile
-- data_quality
-- urls            (comma+space separated)
-- namevariations  (comma+space separated)
-- aliases         (comma+space separated)
-
-No hardcoded paths:
-- Default input/output can be driven by ENV vars (Docker-friendly),
-  but you can always pass --src / --out.
+Modes:
+- legacy (default): writes artists_v1 with artist_id as VARCHAR (as before)
+- typed (--typed):  writes artists_v1_typed with artist_id as BIGINT (Parquet int),
+                    drops rows with non-numeric artist_id and reports drops.
 
 ENV vars:
 - DISCOGS_DATA_LAKE      default: /data/hive-data
@@ -38,10 +28,6 @@ from typing import Optional, List, Dict, Any
 import pandas as pd
 
 
-# ----------------------------
-# helpers
-# ----------------------------
-
 def text_or_none(x: Optional[str]) -> Optional[str]:
     if x is None:
         return None
@@ -54,7 +40,6 @@ def join_csv(values: List[str]) -> Optional[str]:
 
 
 def preferred_parquet_engine() -> str:
-    # Prefer pyarrow if present, fallback to fastparquet
     try:
         import pyarrow  # noqa: F401
         return "pyarrow"
@@ -62,46 +47,42 @@ def preferred_parquet_engine() -> str:
         return "fastparquet"
 
 
-def resolve_paths(src_arg: Optional[str], out_arg: Optional[str]) -> tuple[Path, Path]:
+def parse_args() -> argparse.Namespace:
+    p = argparse.ArgumentParser(description="Extract Discogs artists dump to Parquet.")
+    p.add_argument("--src", help="Path to artists XML dump (*.xml.gz). Overrides DISCOGS_ARTISTS_DUMP.")
+    p.add_argument("--out", help="Output directory override.")
+    p.add_argument("--batch", type=int, default=50_000, help="Rows per Parquet part (default: 50000).")
+    p.add_argument("--engine", choices=["pyarrow", "fastparquet"], default=None, help="Parquet engine override.")
+    p.add_argument("--clean", action="store_true", help="Delete existing *.parquet in output dir before writing.")
+    p.add_argument("--max-parts", type=int, default=None, help="Stop after writing N parts (debug).")
+    p.add_argument("--typed", action="store_true", help="Write typed IDs (artist_id BIGINT) to artists_v1_typed.")
+    return p.parse_args()
+
+
+def resolve_paths(args: argparse.Namespace) -> tuple[Path, Path]:
     data_lake_root = Path(os.environ.get("DISCOGS_DATA_LAKE", "/data/hive-data")).expanduser()
     raw_root = Path(os.environ.get("DISCOGS_RAW", "/data/raw")).expanduser()
 
     src_env = os.environ.get("DISCOGS_ARTISTS_DUMP")
 
-    if src_arg:
-        src = Path(src_arg).expanduser()
+    if args.src:
+        src = Path(args.src).expanduser()
     elif src_env:
         src = Path(src_env).expanduser()
     else:
-        # default guess (prefer passing --src because Discogs filenames are timestamped)
         src = raw_root / "artists" / "discogs_artists.xml.gz"
 
-    out = Path(out_arg).expanduser() if out_arg else (data_lake_root / "artists_v1")
+    if args.out:
+        out = Path(args.out).expanduser()
+    else:
+        out = data_lake_root / ("artists_v1_typed" if args.typed else "artists_v1")
+
     return src, out
 
 
-# ----------------------------
-# args
-# ----------------------------
-
-def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Extract Discogs artists dump to Parquet (artists_v1).")
-    p.add_argument("--src", help="Path to artists XML dump (*.xml.gz). Overrides DISCOGS_ARTISTS_DUMP.")
-    p.add_argument("--out", help="Output directory. Default: $DISCOGS_DATA_LAKE/artists_v1")
-    p.add_argument("--batch", type=int, default=50_000, help="Rows per Parquet part (default: 50000).")
-    p.add_argument("--engine", choices=["pyarrow", "fastparquet"], default=None, help="Parquet engine override.")
-    p.add_argument("--clean", action="store_true", help="Delete existing *.parquet in output dir before writing.")
-    p.add_argument("--max-parts", type=int, default=None, help="Stop after writing N parts (debug).")
-    return p.parse_args()
-
-
-# ----------------------------
-# main
-# ----------------------------
-
 def main() -> int:
     args = parse_args()
-    src, out_dir = resolve_paths(args.src, args.out)
+    src, out_dir = resolve_paths(args)
 
     if not src.exists():
         print(f"❌ ERROR: source file not found: {src}", file=sys.stderr)
@@ -114,7 +95,6 @@ def main() -> int:
 
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    # clean only parquet files (safe)
     if args.clean:
         old = list(out_dir.glob("*.parquet"))
         for fp in old:
@@ -126,13 +106,15 @@ def main() -> int:
 
     print(f"📥 Source: {src}")
     print(f"📦 Output: {out_dir}")
-    print(f"⚙️  batch={args.batch} engine={engine} clean={bool(args.clean)} max_parts={args.max_parts}")
+    print(f"⚙️  batch={args.batch} engine={engine} clean={bool(args.clean)} typed={bool(args.typed)} max_parts={args.max_parts}")
 
     rows: List[Dict[str, Any]] = []
     part = 0
+    dropped_total = 0
+    written_total = 0
 
     def flush() -> None:
-        nonlocal rows, part
+        nonlocal rows, part, dropped_total, written_total
         if not rows:
             return
 
@@ -150,9 +132,23 @@ def main() -> int:
             ],
         )
 
+        dropped_batch = 0
+        if args.typed:
+            # cast artist_id to numeric; drop non-numeric ids
+            df["artist_id"] = pd.to_numeric(df["artist_id"], errors="coerce").astype("Int64")
+            dropped_batch = int(df["artist_id"].isna().sum())
+            if dropped_batch:
+                print(f"⚠️  artists_v1_typed: dropping {dropped_batch:,} rows with non-numeric artist_id (batch)")
+            df = df[df["artist_id"].notna()]
+
         out_file = out_dir / f"part-{part:05d}.parquet"
         df.to_parquet(out_file, engine=engine, index=False)
-        print(f"💾 Written {len(df):,} rows → {out_file.name}")
+
+        written = len(df)
+        written_total += written
+        dropped_total += dropped_batch
+
+        print(f"💾 Written {written:,} rows → {out_file.name}")
 
         rows = []
         part += 1
@@ -162,7 +158,6 @@ def main() -> int:
             if elem.tag != "artist":
                 continue
 
-            # Discogs artists dump usually has <id> inside <artist>; some variants have id attribute
             artist_id = text_or_none(elem.findtext("id")) or text_or_none(elem.get("id"))
             name = text_or_none(elem.findtext("name"))
             realname = text_or_none(elem.findtext("realname"))
@@ -219,7 +214,13 @@ def main() -> int:
             elem.clear()
 
     flush()
-    print(f"✅ Done. Parts written: {part}  Output: {out_dir}")
+
+    if args.typed:
+        print(f"✅ Done. Parts written: {part}  Output: {out_dir}")
+        print(f"📊 artists_v1_typed: written={written_total:,} dropped_non_numeric_artist_id={dropped_total:,}")
+    else:
+        print(f"✅ Done. Parts written: {part}  Output: {out_dir}")
+
     return 0
 
 

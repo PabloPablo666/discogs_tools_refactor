@@ -2,25 +2,16 @@
 """
 Discogs → labels_v10 (Parquet)
 
-Streaming parse del dump Discogs labels (xml.gz) verso Parquet, compatibile con:
-hive.discogs.labels_ref_v10
+Fix reale:
+- Nel dump, le sublabel sono <sublabels><label ...>...</label></sublabels>
+  quindi sono tag <label> annidati.
+- Con iterparse, se clear(i) i nested <label> quando finiscono, perdi le sublabel
+  prima di processare la label top-level.
 
-Colonne output:
-- label_id (BIGINT)
-- name (VARCHAR)
-- profile (VARCHAR)
-- contact_info (VARCHAR)
-- data_quality (VARCHAR)
-- parent_label_id (BIGINT)
-- parent_label_name (VARCHAR)
-- urls_csv (VARCHAR)
-- sublabel_ids_csv (VARCHAR)        comma+space separated
-- sublabel_names_csv (VARCHAR)      comma+space separated
-
-Obiettivi:
-- Stessa logica del tuo vecchio script (che funzionava)
-- Portabile (no path hardcoded)
-- Zero righe con label_id NULL
+Soluzione:
+- iterparse con ("start","end") + label_depth
+- processiamo SOLO i <label> top-level (label_depth == 1)
+- clear() SOLO del top-level dopo averlo scritto (così liberi tutta la subtree)
 """
 
 from __future__ import annotations
@@ -76,7 +67,6 @@ def resolve_paths(src_arg: Optional[str], out_arg: Optional[str]) -> tuple[Path,
     elif src_env:
         src = Path(src_env).expanduser()
     else:
-        # default “docker-friendly guess”
         src = raw_root / "labels" / "discogs_labels.xml.gz"
 
     out = Path(out_arg).expanduser() if out_arg else (data_lake_root / "labels_v10")
@@ -89,9 +79,7 @@ def main() -> int:
 
     if not src.exists():
         print(f"❌ ERROR: source file not found: {src}", file=sys.stderr)
-        print("   Tip: pass --src /path/to/discogs_YYYYMMDD_labels.xml.gz", file=sys.stderr)
         return 2
-
     if args.batch <= 0:
         print("❌ ERROR: --batch must be > 0", file=sys.stderr)
         return 2
@@ -99,11 +87,12 @@ def main() -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     if args.clean:
-        old = list(out_dir.glob("*.parquet"))
-        for fp in old:
+        n = 0
+        for fp in out_dir.glob("*.parquet"):
             fp.unlink()
-        if old:
-            print(f"🧹 Cleaned {len(old)} parquet files in {out_dir}")
+            n += 1
+        if n:
+            print(f"🧹 Cleaned {n} parquet files in {out_dir}")
 
     engine = args.engine or parquet_engine_preferred()
     batch = int(args.batch)
@@ -114,10 +103,12 @@ def main() -> int:
 
     rows: List[Dict[str, Any]] = []
     part = 0
+    written_total = 0
     skipped_no_id = 0
+    skipped_non_entity = 0
 
     def flush() -> None:
-        nonlocal rows, part
+        nonlocal rows, part, written_total
         if not rows:
             return
 
@@ -137,19 +128,13 @@ def main() -> int:
             ],
         )
 
-        # Force numeric IDs (like your old script) and guarantee no NULL label_id
         df["label_id"] = pd.to_numeric(df["label_id"], errors="coerce").astype("Int64")
         df["parent_label_id"] = pd.to_numeric(df["parent_label_id"], errors="coerce").astype("Int64")
 
-        # Drop any row that somehow lost label_id (paranoia mode ON)
-        before = len(df)
         df = df[df["label_id"].notna()]
-        dropped = before - len(df)
-        if dropped:
-            print(f"⚠️ Dropped {dropped} rows with NULL label_id during flush()")
 
-        # Force text cols to string (prevents BLOB surprises)
-        text_cols = [
+        # forza testo come string (evita VARBINARY)
+        for c in [
             "name",
             "profile",
             "contact_info",
@@ -158,87 +143,102 @@ def main() -> int:
             "urls_csv",
             "sublabel_ids_csv",
             "sublabel_names_csv",
-        ]
-        for c in text_cols:
+        ]:
             df[c] = df[c].astype("string")
 
-        out_file = out_dir / f"labels_part{part:04d}.parquet"
+        out_file = out_dir / f"part-{part:05d}.parquet"
         df.to_parquet(out_file, engine=engine, index=False)
-        print(f"🧱 written {out_file.name} ({len(df):,} rows)")
+
+        written_total += len(df)
+        print(f"💾 written {out_file.name} ({len(df):,} rows)")
 
         rows.clear()
         part += 1
 
+    label_depth = 0
+
     with gzip.open(src, "rb") as f:
-        for event, elem in ET.iterparse(f, events=("end",)):
+        for event, elem in ET.iterparse(f, events=("start", "end")):
             if elem.tag != "label":
                 continue
 
-            # ID: prefer attribute, fallback to <id> if present
-            lid_raw = text_or_none(elem.get("id")) or text_or_none(elem.findtext("id"))
-
-            # If ID missing, skip. No NULL rows. Ever.
-            if not lid_raw or not lid_raw.isdigit():
-                skipped_no_id += 1
-                elem.clear()
+            if event == "start":
+                label_depth += 1
                 continue
 
-            name = text_or_none(elem.findtext("name"))
-            profile = text_or_none(elem.findtext("profile"))
-            contact = text_or_none(elem.findtext("contactinfo"))
-            dq = text_or_none(elem.findtext("data_quality"))
+            # event == "end" for a <label>
+            # se non è top-level, NON processare e soprattutto NON clearare
+            if label_depth != 1:
+                label_depth -= 1
+                continue
 
-            parent = elem.find("parent_label")
-            parent_id = text_or_none(parent.get("id")) if parent is not None else None
-            parent_name = None
-            if parent is not None and parent.text:
-                parent_name = text_or_none(parent.text)
+            # qui siamo al top-level label entity
+            try:
+                if elem.find("name") is None:
+                    skipped_non_entity += 1
+                    continue
 
-            urls_list: List[str] = []
-            for u in elem.findall("urls/url"):
-                utxt = text_or_none(u.text)
-                if utxt:
-                    urls_list.append(utxt)
-            urls_csv = join_csv(urls_list)
+                lid_raw = text_or_none(elem.get("id")) or text_or_none(elem.findtext("id"))
+                if not lid_raw or not lid_raw.isdigit():
+                    skipped_no_id += 1
+                    continue
 
-            s_ids: List[str] = []
-            s_names: List[str] = []
-            for s in elem.findall("sublabels/label"):
-                sid = text_or_none(s.get("id"))
-                sname = text_or_none(s.text)
-                if sid:
-                    s_ids.append(sid)
-                if sname:
-                    s_names.append(sname)
+                name = text_or_none(elem.findtext("name"))
+                profile = text_or_none(elem.findtext("profile"))
+                contact = text_or_none(elem.findtext("contactinfo"))
+                dq = text_or_none(elem.findtext("data_quality"))
 
-            rows.append(
-                {
-                    "label_id": lid_raw,
-                    "name": name,
-                    "profile": profile,
-                    "contact_info": contact,
-                    "data_quality": dq,
-                    "parent_label_id": parent_id,
-                    "parent_label_name": parent_name,
-                    "urls_csv": urls_csv,
-                    "sublabel_ids_csv": join_csv(s_ids),
-                    "sublabel_names_csv": join_csv(s_names),
-                }
-            )
+                # ✅ parentLabel (camelCase)
+                parent = elem.find("parentLabel")
+                parent_id = text_or_none(parent.get("id")) if parent is not None else None
+                parent_name = text_or_none(parent.text) if parent is not None else None
 
-            if len(rows) >= batch:
-                flush()
-                if args.max_parts is not None and part >= args.max_parts:
-                    print(f"🧪 max-parts reached ({args.max_parts}), stopping early.")
-                    elem.clear()
-                    break
+                urls_list: List[str] = []
+                for u in elem.findall("urls/url"):
+                    utxt = text_or_none(u.text)
+                    if utxt:
+                        urls_list.append(utxt)
 
-            elem.clear()
+                s_ids: List[str] = []
+                s_names: List[str] = []
+                for s in elem.findall("sublabels/label"):
+                    sid = text_or_none(s.get("id"))
+                    sname = text_or_none(s.text)
+                    if sid:
+                        s_ids.append(sid)
+                    if sname:
+                        s_names.append(sname)
+
+                rows.append(
+                    {
+                        "label_id": lid_raw,
+                        "name": name,
+                        "profile": profile,
+                        "contact_info": contact,
+                        "data_quality": dq,
+                        "parent_label_id": parent_id,
+                        "parent_label_name": parent_name,
+                        "urls_csv": join_csv(urls_list),
+                        "sublabel_ids_csv": join_csv(s_ids),
+                        "sublabel_names_csv": join_csv(s_names),
+                    }
+                )
+
+                if len(rows) >= batch:
+                    flush()
+                    if args.max_parts is not None and part >= args.max_parts:
+                        break
+
+            finally:
+                # ora sì: finita la top-level, cleariamo tutta la subtree
+                elem.clear()
+                label_depth -= 1
 
     flush()
     print(f"✅ Done. Parts written: {part}  Output: {out_dir}")
-    if skipped_no_id:
-        print(f"ℹ️ Skipped labels without numeric id: {skipped_no_id}")
+    print(f"📊 written_total={written_total:,}")
+    print(f"ℹ️ Skipped labels without numeric id: {skipped_no_id}")
+    print(f"ℹ️ Skipped non-entity labels: {skipped_non_entity}")
     return 0
 
 

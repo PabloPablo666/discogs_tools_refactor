@@ -2,32 +2,17 @@
 """
 Discogs → masters_v1 (Parquet)
 
-Streaming parse of the Discogs masters XML dump (gzipped) to Parquet, aligned with:
-hive.discogs.masters_v1
+Streaming parse of the Discogs masters XML dump (gzipped) to Parquet.
 
-Output columns:
-- master_id (VARCHAR)
-- main_release_id (VARCHAR)
-- title (VARCHAR)
-- year (BIGINT)
-- master_artists (VARCHAR)         comma-separated
-- master_artist_ids (VARCHAR)      comma-separated (no spaces)
-- genres (VARCHAR)                 comma-separated
-- styles (VARCHAR)                 comma-separated
-- data_quality (VARCHAR)
-
-Portability:
-- No hardcoded paths.
-- Uses ENV vars with Docker-friendly defaults.
+Modes:
+- legacy (default): writes masters_v1 with master_id/main_release_id as VARCHAR (as before)
+- typed (--typed):  writes masters_v1_typed with master_id/main_release_id as BIGINT,
+                    drops rows with non-numeric master_id and reports drops.
 
 ENV vars:
 - DISCOGS_DATA_LAKE      default: /data/hive-data
 - DISCOGS_RAW            default: /data/raw
 - DISCOGS_MASTERS_DUMP   optional explicit dump path
-
-Examples (Mac):
-    export DISCOGS_DATA_LAKE=/Users/paoloolivieri/discogs_data_lake/hive-data
-    python3 extract_masters_v1.py --src /Users/paoloolivieri/discogs_data_lake/raw/masters/discogs_20251101_masters.xml.gz
 """
 
 from __future__ import annotations
@@ -59,29 +44,34 @@ def parquet_engine_preferred() -> str:
 
 
 def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Extract Discogs masters dump to Parquet (masters_v1).")
+    p = argparse.ArgumentParser(description="Extract Discogs masters dump to Parquet.")
     p.add_argument("--src", help="Path to masters XML dump (*.xml.gz). Overrides DISCOGS_MASTERS_DUMP.")
-    p.add_argument("--out", help="Output dir. Default: $DISCOGS_DATA_LAKE/masters_v1")
+    p.add_argument("--out", help="Output dir override.")
     p.add_argument("--batch", type=int, default=50_000, help="Rows per Parquet part (default: 50000).")
     p.add_argument("--engine", choices=["pyarrow", "fastparquet"], default=None, help="Parquet engine override.")
     p.add_argument("--max-parts", type=int, default=None, help="Stop after writing N parts (debug).")
+    p.add_argument("--clean", action="store_true", help="Delete existing *.parquet in output dir before writing.")
+    p.add_argument("--typed", action="store_true", help="Write typed IDs (master_id/main_release_id BIGINT) to masters_v1_typed.")
     return p.parse_args()
 
 
-def resolve_paths(src_arg: Optional[str], out_arg: Optional[str]) -> tuple[Path, Path]:
+def resolve_paths(args: argparse.Namespace) -> tuple[Path, Path]:
     data_lake_root = Path(os.environ.get("DISCOGS_DATA_LAKE", "/data/hive-data")).expanduser()
     raw_root = Path(os.environ.get("DISCOGS_RAW", "/data/raw")).expanduser()
 
     src_env = os.environ.get("DISCOGS_MASTERS_DUMP")
-    if src_arg:
-        src = Path(src_arg).expanduser()
+    if args.src:
+        src = Path(args.src).expanduser()
     elif src_env:
         src = Path(src_env).expanduser()
     else:
-        # Default guess; in practice pass --src because Discogs filenames are timestamped
         src = raw_root / "masters" / "discogs_masters.xml.gz"
 
-    out = Path(out_arg).expanduser() if out_arg else (data_lake_root / "masters_v1")
+    if args.out:
+        out = Path(args.out).expanduser()
+    else:
+        out = data_lake_root / ("masters_v1_typed" if args.typed else "masters_v1")
+
     return src, out
 
 
@@ -100,22 +90,36 @@ def safe_int(x: Optional[str]) -> Optional[int]:
 
 def main() -> int:
     args = parse_args()
-    src, out_dir = resolve_paths(args.src, args.out)
+    src, out_dir = resolve_paths(args)
 
     if not src.exists():
-        print(f"ERROR: source file not found: {src}", file=sys.stderr)
-        print("Tip: pass --src /path/to/discogs_YYYYMMDD_masters.xml.gz", file=sys.stderr)
+        print(f"❌ ERROR: source file not found: {src}", file=sys.stderr)
+        print("   Tip: pass --src /path/to/discogs_YYYYMMDD_masters.xml.gz", file=sys.stderr)
         return 2
 
     out_dir.mkdir(parents=True, exist_ok=True)
+
+    if args.clean:
+        old = list(out_dir.glob("*.parquet"))
+        for fp in old:
+            fp.unlink()
+        if old:
+            print(f"🧹 Cleaned {len(old)} parquet files in {out_dir}")
+
     engine = args.engine or parquet_engine_preferred()
     batch = int(args.batch)
 
+    print(f"📥 Source:  {src}")
+    print(f"📦 Output:  {out_dir}")
+    print(f"⚙️  batch={batch} engine={engine} clean={bool(args.clean)} typed={bool(args.typed)}")
+
     rows: List[Dict[str, Any]] = []
     part = 0
+    dropped_total = 0
+    written_total = 0
 
     def flush() -> None:
-        nonlocal rows, part
+        nonlocal rows, part, dropped_total, written_total
         if not rows:
             return
 
@@ -134,18 +138,32 @@ def main() -> int:
             ],
         )
 
-        # keep year numeric (Trino table expects BIGINT)
+        # year stays numeric
         df["year"] = pd.to_numeric(df["year"], errors="coerce").astype("Int64")
+
+        dropped_batch = 0
+        if args.typed:
+            df["master_id"] = pd.to_numeric(df["master_id"], errors="coerce").astype("Int64")
+            df["main_release_id"] = pd.to_numeric(df["main_release_id"], errors="coerce").astype("Int64")
+
+            dropped_batch = int(df["master_id"].isna().sum())
+            if dropped_batch:
+                print(f"⚠️  masters_v1_typed: dropping {dropped_batch:,} rows with non-numeric master_id (batch)")
+
+            # master_id is mandatory for typed dataset
+            df = df[df["master_id"].notna()]
 
         out_file = out_dir / f"part-{part:05d}.parquet"
         df.to_parquet(out_file, engine=engine, index=False)
-        print(f"💾 Written {len(df):,} rows → {out_file.name}")
+
+        written = len(df)
+        written_total += written
+        dropped_total += dropped_batch
+
+        print(f"💾 Written {written:,} rows → {out_file.name}")
+
         rows = []
         part += 1
-
-    print(f"📥 Source:  {src}")
-    print(f"📦 Output:  {out_dir}")
-    print(f"⚙️  batch={batch} engine={engine}")
 
     with gzip.open(src, "rb") as f:
         for event, elem in ET.iterparse(f, events=("end",)):
@@ -158,7 +176,6 @@ def main() -> int:
             year = safe_int(text_or_none(elem.findtext("year")))
             data_quality = text_or_none(elem.findtext("data_quality"))
 
-            # artists
             master_artists_list: List[str] = []
             master_artist_ids_list: List[str] = []
             artists_elem = elem.find("artists")
@@ -172,9 +189,8 @@ def main() -> int:
                         master_artist_ids_list.append(aid)
 
             master_artists = join_csv(master_artists_list, sep=", ")
-            master_artist_ids = join_csv(master_artist_ids_list, sep=",")  # keep tight ids, same as your original
+            master_artist_ids = join_csv(master_artist_ids_list, sep=",")
 
-            # genres
             genres_list: List[str] = []
             genres_elem = elem.find("genres")
             if genres_elem is not None:
@@ -184,7 +200,6 @@ def main() -> int:
                         genres_list.append(gtxt)
             genres = join_csv(genres_list, sep=", ")
 
-            # styles
             styles_list: List[str] = []
             styles_elem = elem.find("styles")
             if styles_elem is not None:
@@ -218,7 +233,13 @@ def main() -> int:
             elem.clear()
 
     flush()
-    print(f"✅ Done. Parts written: {part}  Output: {out_dir}")
+
+    if args.typed:
+        print(f"✅ Done. Parts written: {part}  Output: {out_dir}")
+        print(f"📊 masters_v1_typed: written={written_total:,} dropped_non_numeric_master_id={dropped_total:,}")
+    else:
+        print(f"✅ Done. Parts written: {part}  Output: {out_dir}")
+
     return 0
 
 
