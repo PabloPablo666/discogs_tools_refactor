@@ -1,0 +1,34 @@
+_export:
+  project_root: /Users/paoloolivieri/discogs_tools_refactor
+  sql_file: ${project_root}/myqueries/SQL/collectionStyles.sql
+  out_dir: ${project_root}/myqueries/RESULTS
+
+  trino_container: trino
+  trino_catalog: hive
+  trino_schema: discogs
+
++run_sql_to_csv:
+  sh>: |
+    set -euo pipefail
+    TS=$(date +"%Y%m%d_%H%M%S")
+    BASE=$(basename "$sql_file" .sql)
+    OUT="$out_dir/$BASE"_"$TS".csv
+
+    docker exec -i "$trino_container" trino \
+      --catalog "$trino_catalog" \
+      --schema "$trino_schema" \
+      --output-format CSV \
+      < "$sql_file" \
+      > "$OUT"
+
+    {
+      echo ""
+      echo "=============================================="
+      echo " CSV EXPORT COMPLETED SUCCESSFULLY "
+      echo "----------------------------------------------"
+      echo " File: $OUT"
+      echo " Rows:"
+      wc -l "$OUT"
+      echo "=============================================="
+      echo ""
+    } >&2

@@ -1,0 +1,12 @@
+_export:
+  !include : '_config.yml'
+
++tests:
+  sh>: |
+    set -euo pipefail
+    RUN_ROOT="$DISCOGS_DATA_LAKE/_runs/$run_id"
+    test -d "$RUN_ROOT"
+
+    echo "[PARQUET TESTS - RUN]"
+    test -x "$project_root/tests/run_parquet_sanity_active.sh"
+    "$project_root/tests/run_parquet_sanity_active.sh" "$RUN_ROOT"

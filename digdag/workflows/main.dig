@@ -1,0 +1,42 @@
+_export:
+  !include : '_config.yml'
+
++preflight:
+  sh>: |
+    set -eo pipefail
+    set +u
+    if [ -z "$DISCOGS_DATA_LAKE" ]; then echo "DISCOGS_DATA_LAKE not set" >&2; exit 2; fi
+    if [ -z "$dump_month" ]; then echo "dump_month not set" >&2; exit 2; fi
+    if [ -z "$raw_root" ]; then echo "raw_root not set" >&2; exit 2; fi
+    set -u
+    echo "[PREFLIGHT]"
+    echo " run_id     = $run_id"
+    echo " run_mode   = $run_mode"
+    echo " do_download= $do_download"
+    echo " dump_month = $dump_month"
+    echo " lake       = $DISCOGS_DATA_LAKE"
+    echo " raw_root   = $raw_root"
+
++download:
+  call>: download.dig
+
++ingest:
+  call>: ingest.dig
+
++build:
+  call>: build.dig
+
++tests_parquet_run:
+  call>: tests_parquet_run.dig
+
++tests_dev_xml:
+  call>: tests_xml_dev.dig
+
++promote:
+  call>: promote.dig
+
++tests_parquet_active:
+  call>: tests_parquet_active.dig
+
++report_trino_active:
+  call>: tests_trino_report_active.dig

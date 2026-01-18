@@ -4,8 +4,9 @@ set -euo pipefail
 DATA_LAKE="${DISCOGS_DATA_LAKE:-/Users/paoloolivieri/discogs_data_lake/hive-data}"
 SRC="${1:-/Users/paoloolivieri/discogs_store/raw/labels/discogs_20251101_labels.xml.gz}"
 
-OUT_BASE="$DATA_LAKE/_tmp_test"
+OUT_BASE="${DISCOGS_TEST_ROOT:-$DATA_LAKE/_tmp_test}"
 OUT="$OUT_BASE/labels_v10"
+
 
 echo "DATA_LAKE: $DATA_LAKE"
 echo "SRC:       $SRC"

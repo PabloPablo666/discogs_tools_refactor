@@ -1,0 +1,47 @@
+_export:
+  !include : '_config.yml'
+
++ingest_all:
+  sh>: |
+    set -euo pipefail
+
+    BASE_LAKE="$(printenv DISCOGS_DATA_LAKE || true)"
+    if [ -z "$BASE_LAKE" ]; then
+      echo "ERROR: DISCOGS_DATA_LAKE is not set" >&2
+      exit 2
+    fi
+
+    RUN_ROOT="$BASE_LAKE/_runs/$run_id"
+    mkdir -p "$RUN_ROOT"
+
+    export DISCOGS_DATA_LAKE="$RUN_ROOT"
+
+    DUMP_DATE="$(python3 "$project_root/scripts/find_discogs_dump_date.py" --month "$dump_month")"
+    RAW="$raw_root/$dump_month"
+
+    ARTISTS="$(printf '%s/discogs_%s_artists.xml.gz'  "$RAW" "$DUMP_DATE")"
+    LABELS="$(printf '%s/discogs_%s_labels.xml.gz'   "$RAW" "$DUMP_DATE")"
+    MASTERS="$(printf '%s/discogs_%s_masters.xml.gz'  "$RAW" "$DUMP_DATE")"
+    RELEASES="$(printf '%s/discogs_%s_releases.xml.gz' "$RAW" "$DUMP_DATE")"
+
+    for f in "$ARTISTS" "$LABELS" "$MASTERS" "$RELEASES"; do
+      test -f "$f"
+    done
+
+    echo "==============================================" >&2
+    echo " INGEST (RUN-BASED)" >&2
+    echo " Month:   $dump_month" >&2
+    echo " Date:    $DUMP_DATE" >&2
+    echo " Raw:     $RAW" >&2
+    echo " BaseLake:$BASE_LAKE" >&2
+    echo " RunRoot: $RUN_ROOT" >&2
+    echo "==============================================" >&2
+
+    python3 "$project_root/pipelines/extract_artists_v1.py" --src "$ARTISTS" --typed
+    python3 "$project_root/pipelines/extract_artist_relations_v1.py" --src "$ARTISTS" --typed
+    python3 "$project_root/pipelines/extract_masters_v1.py" --src "$MASTERS" --typed
+
+    python3 "$project_root/pipelines/parse_labels_v10.py" --src "$LABELS"
+    python3 "$project_root/pipelines/extract_releases_v6.py" --src "$RELEASES"
+
+    echo "✅ INGEST completed under: $RUN_ROOT" >&2

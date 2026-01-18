@@ -20,3 +20,13 @@ __pycache__/
 .DS_Store
 .vscode/
 .idea/
+
+.DS_Store
+
+# digdag runtime
+.digdag/status/
+.digdag/tmp/
+*.log
+
+# digdag runtime (if launched from workflows dir)
+digdag/workflows/.digdag/

@@ -4,7 +4,7 @@ set -euo pipefail
 DATA_LAKE="${DISCOGS_DATA_LAKE:-/Users/paoloolivieri/discogs_data_lake/hive-data}"
 SRC="${1:-/Users/paoloolivieri/discogs_store/raw/artists/discogs_20251101_artists.xml.gz}"
 
-OUT_BASE="$DATA_LAKE/_tmp_test"
+OUT_BASE="${DISCOGS_TEST_ROOT:-$DATA_LAKE/_tmp_test}"
 OUT_ALIASES="$OUT_BASE/artist_aliases_v1"
 OUT_MEMBERS="$OUT_BASE/artist_memberships_v1"
 

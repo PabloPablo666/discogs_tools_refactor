@@ -1,0 +1,49 @@
+_export:
+  !include : '_config.yml'
+  dry_run: false
+
++promote:
+  sh>: |
+    set -euo pipefail
+
+    # -------------------------------------------------
+    # DEV SAFETY
+    # -------------------------------------------------
+    if [ "$run_mode" = "dev" ]; then
+      echo "[PROMOTE] skipped (run_mode=dev)" >&2
+      exit 0
+    fi
+
+    BASE_LAKE="$(printenv DISCOGS_DATA_LAKE || true)"
+    if [ -z "$BASE_LAKE" ]; then
+      echo "ERROR: DISCOGS_DATA_LAKE is not set" >&2
+      exit 2
+    fi
+
+    # Default: promote current run
+    PROMOTE_RUN_ID="$run_id"
+    set +u
+    if [ -n "$promote_run_id" ]; then
+      PROMOTE_RUN_ID="$promote_run_id"
+    fi
+    set -u
+
+    if [ -z "$PROMOTE_RUN_ID" ]; then
+      echo "ERROR: PROMOTE_RUN_ID is empty" >&2
+      exit 2
+    fi
+
+    echo "==============================================" >&2
+    echo " PROMOTE" >&2
+    echo " BaseLake: $BASE_LAKE" >&2
+    echo " Run:      $PROMOTE_RUN_ID" >&2
+    echo " Active:   $BASE_LAKE/active -> $BASE_LAKE/_runs/$PROMOTE_RUN_ID" >&2
+    echo " dry_run:  $dry_run" >&2
+    echo "==============================================" >&2
+
+    if [ "$dry_run" = "true" ]; then
+      echo "[DRY-RUN] Would run: $project_root/scripts/promote_run_to_active.sh $PROMOTE_RUN_ID" >&2
+      exit 0
+    fi
+
+    "$project_root/scripts/promote_run_to_active.sh" "$PROMOTE_RUN_ID"

@@ -1,266 +1,264 @@
-# Discogs Data Lake · Pipelines & Tests
+Discogs Data Lake · Pipelines, Runs & Validation
 
-This repository contains **production-grade ingestion pipelines**, validation tests,
-and SQL utilities used to build a **typed, reproducible Discogs data lake** stored as
-**Parquet** and queried with **DuckDB** and **Trino**.
+This repository contains the pipeline, validation and orchestration layer
+of a local Discogs lakehouse, designed with run-based execution, immutable snapshots
+and verifiable data promotion.
 
-The focus is **correctness, reproducibility, and schema stability**, not quick hacks.
+The goal is not simply to parse Discogs dumps, but to build a reproducible,
+auditable data production system.
 
-This repository is the **pipeline and validation layer** of the Discogs lakehouse.
-Infrastructure and query serving live in a separate repository.
+Infrastructure (Trino + Hive Metastore) lives in a separate repository.
 
----
+================================================================================
 
-## 📦 What this repo is
 
-A **refactored, testable pipeline layer** for ingesting Discogs dumps into a
-**typed lakehouse layout**:
+What this repository is
 
-- Streaming XML → Parquet
-- Canonical, typed schemas
-- Deterministic outputs
-- Explicit sanity tests
-- Legacy scripts preserved for auditability
+A production-style data pipeline system that:
+	•	ingests Discogs XML dumps via streaming parsers
+	•	produces typed Parquet datasets
+	•	validates outputs with automated tests
+	•	builds analytical warehouse tables
+	•	publishes data atomically via an active pointer
+	•	generates permanent sanity reports
 
-This repo does **not** ship data.  
-It ships **code that produces data deterministically**.
+This repository does not ship data.
 
----
+It ships deterministic code that produces versioned datasets.
 
-## 🗂 Repository structure
+================================================================================
+
+
+High-level architecture
+
+Discogs XML dumps
+        ↓
+Streaming ingestion pipelines
+        ↓
+Typed Parquet datasets
+        ↓
+Warehouse transformations
+        ↓
+Run-level validation
+        ↓
+Promotion (atomic pointer switch)
+        ↓
+Post-promotion Trino sanity report
+
+Each execution is isolated in its own run directory.
+
+================================================================================
+
+
+Run-based design
+
+Every pipeline execution creates an immutable snapshot:
+
+hive-data/
+└── _runs/
+    └── YYYYMMDD_HHMMSS/
+        ├── artists_v1_typed/
+        ├── masters_v1_typed/
+        ├── releases_v6/
+        ├── labels_v10/
+        ├── warehouse_discogs/
+        └── _reports/
+
+Nothing is overwritten.
+
+Old runs are never modified.
+
+================================================================================
+
+
+Active dataset pointer
+
+Consumers (Trino, SQL, analytics) never query _runs directly.
+
+Instead, a single symbolic link is used:
+
+hive-data/active -> _runs/20260117_192144
+
+Promotion switches this pointer atomically.
+
+Benefits:
+	•	zero-downtime publishing
+	•	instant rollback
+	•	stable table locations
+	•	reproducible historical runs
+
+================================================================================
+
+
+Repository structure
 
 discogs_tools_refactor/
-├── pipelines/ # Maintained ingestion pipelines (typed outputs)
-│ ├── extract_artists_v1.py
-│ ├── extract_artist_relations_v1.py
-│ ├── extract_masters_v1.py
-│ ├── extract_releases_v6.py
-│ ├── parse_labels_v10.py
-│ └── rebuild_artist_name_map_v1.py
+├── pipelines/          # Streaming ingestion & transforms
+│   ├── extract_artists_v1.py
+│   ├── extract_artist_relations_v1.py
+│   ├── extract_masters_v1.py
+│   ├── extract_releases_v6.py
+│   ├── parse_labels_v10.py
+│   └── rebuild_artist_name_map_v1.py
 │
-├── tests/ # Runnable sanity tests (DuckDB-based)
-│ ├── run_test_artists_v1.sh
-│ ├── run_test_artist_relations.sh
-│ ├── run_test_masters_v1.sh
-│ ├── run_test_labels_v10.sh
-│ └── run_test_releases_v6.sh
+├── tests/              # DuckDB-based validation tests
+│   ├── run_test_artists_v1.sh
+│   ├── run_test_artist_relations.sh
+│   ├── run_test_masters_v1.sh
+│   ├── run_test_labels_v10.sh
+│   └── run_test_releases_v6.sh
 │
-├── sql/ # Analytical & sanity SQL (Trino / DuckDB)
-│ ├── sanity_checks_trino.sql
-│ └── 90_joined_showcase/ # Portfolio-style analytical queries
+├── digdag/             # Orchestration workflows
+│   ├── main.dig
+│   ├── ingest.dig
+│   ├── build.dig
+│   ├── promote.dig
+│   └── tests_*.dig
 │
-├── legacy/ # Known-good historical scripts (immutable)
-│ ├── README.md
-│ ├── RESTORE_GUIDE.md
-│ └── *.py
+├── sql/                # Trino / DuckDB SQL
+│   ├── sanity_report_active_v1.sql
+│   └── showcase_queries/
+│
+├── legacy/             # Historical reference scripts
+│   └── (immutable)
 │
 └── README.md
 
-yaml
-Copy code
+================================================================================
 
----
 
-## 🧠 Design principles
+Design principles
 
-- **Streaming only**  
-  XML dumps are parsed incrementally. No full-file loads.
 
-- **Typed-first schemas**  
-  Canonical IDs are written as numeric types (`BIGINT`) where possible.
-  Legacy string-based layouts are not used for new ingestion.
+1) Streaming only
 
-- **Schema stability > convenience**  
-  Outputs are Trino/DuckDB friendly by design.
-  No implicit type inference, no surprises.
+XML dumps are processed incrementally.
+No full-file memory loading.
 
-- **Deterministic outputs**  
-  Same input → same Parquet layout → same row counts.
+2) Typed-first schemas
+	•	numeric IDs where possible
+	•	explicit column types
+	•	Trino-safe schemas
+	•	no implicit inference
 
-- **Tests before trust**  
-  Every pipeline has a runnable test producing:
-  - row counts
-  - null checks
-  - referential sanity checks
-  - small human-readable samples
 
----
+3) Deterministic outputs
 
-## 🏗 Output datasets
+Same input dump → same parquet layout → same results.
 
-All pipelines write to a **data lake root**, typically defined by:
+
+4) Immutable runs
+
+Data is never overwritten.
+Only new runs are created.
+
+
+5)Promotion, not overwrite
+
+Publishing is explicit and reversible.
+
+
+6) Tests before trust
+
+Every run must pass:
+	•	parquet-level sanity checks
+	•	schema validation
+	•	referential integrity checks
+
+7) Reports after promotion
+
+
+After promotion, Trino runs full SQL sanity checks and produces CSV reports.
+
+These reports live alongside the run forever.
+
+================================================================================
+
+
+Output datasets
+
+All data is written under a lake root:
 
 DISCOGS_DATA_LAKE=/absolute/path/to/discogs_data_lake/hive-data
 
-graphql
-Copy code
 
-### Canonical physical datasets (typed)
+Canonical typed datasets
 
-$DISCOGS_DATA_LAKE/
-├── artists_v1_typed/
-├── artist_aliases_v1_typed/
-├── artist_memberships_v1_typed/
-├── masters_v1_typed/
-├── releases_v6/
-├── labels_v10/
-├── collection/
-└── warehouse_discogs/
+artists_v1_typed/
+artist_aliases_v1_typed/
+artist_memberships_v1_typed/
+masters_v1_typed/
+releases_v6/
+labels_v10/
+collection/
+
+
+Warehouse datasets
+
+warehouse_discogs/
 ├── artist_name_map_v1/
 ├── release_artists_v1/
-└── release_label_xref_v1/
+├── release_label_xref_v1/
+├── label_release_counts_v1/
+├── release_style_xref_v1/
+└── release_genre_xref_v1/
 
-kotlin
-Copy code
+================================================================================
 
-These datasets are consumed by **Trino** as external tables and exposed via
-logical views (`*_v1`) in the lakehouse layer.
 
-### Test outputs
+Validation strategy
 
-During tests, pipelines write to an isolated location:
+DuckDB tests (run-level)
 
-$DISCOGS_DATA_LAKE/_tmp_test/
+Used for:
+	•	pipeline correctness
+	•	regression detection
+	•	fast feedback during development
 
-yaml
-Copy code
+Runs on isolated _tmp_test/ paths.
 
-Nothing touches production paths unless explicitly moved.
 
----
+Trino sanity reports (active-level)
 
-## Known upstream inconsistencies
+Executed after promotion:
+	•	validates real query behavior
+	•	checks cross-table integrity
+	•	produces CSV audit reports
 
-Discogs data contains structural inconsistencies by design, including:
+================================================================================
 
-- artist aliases referencing missing artist IDs
-- group memberships with partial metadata
-- labels with parent references not resolvable in the same dump
 
-These are upstream data characteristics, not pipeline errors.
+Known Discogs inconsistencies
 
-Sanity tests are designed to:
-- detect unexpected regressions
-- quantify known anomalies
-- prevent silent data corruption
+Discogs data is not clean by design.
 
----
+Examples:
+	•	alias IDs not resolvable to artists
+	•	partial group memberships
+	•	label parent references missing
 
-# Discogs data dumps (input)
+Tests distinguish between:
+	•	expected upstream anomalies
+	•	unexpected pipeline regressions
 
-Pipelines in this repository consume the official Discogs XML dumps
-(`*.xml.gz`) as input.
+Nothing is silently ignored.
 
-These files must be downloaded manually from the Discogs data dumps page
-and are **not included** in this repository for licensing reasons.
+================================================================================
 
-You can find them at:
 
-https://discogs-data-dumps.s3.us-west-2.amazonaws.com/index.html?prefix=data/
+What this repository is NOT
+	•	not a scraper
+	•	not a downloader only
+	•	not an overwrite-based ETL
+	•	not a demo toy
 
-Typical inputs include:
-- `discogs_YYYYMMDD_artists.xml.gz`
-- `discogs_YYYYMMDD_masters.xml.gz`
-- `discogs_YYYYMMDD_releases.xml.gz`
-- `discogs_YYYYMMDD_labels.xml.gz`
+It is a versioned data production system.
 
----
+================================================================================
 
-## ▶️ Running a pipeline test
 
-Example: **artists**
+Notes
 
-```bash
-export DISCOGS_DATA_LAKE=/Users/you/discogs_data_lake/hive-data
+Discogs data is subject to Discogs licensing terms.
 
-./tests/run_test_artists_v1.sh \
-  /Users/you/discogs_store/raw/artists/discogs_YYYYMMDD_artists.xml.gz
-Each test script will:
-
-run the pipeline into _tmp_test/
-
-validate output using DuckDB
-
-print row counts and sample rows
-
-exit with PASS ✅ or fail hard
-
-Same pattern applies to:
-
-run_test_labels_v10.sh
-
-run_test_masters_v1.sh
-
-run_test_releases_v6.sh
-
-Yes, releases is slow. That’s reality, not a bug.
-
-🔍 Sanity checks (Trino)
-High-level integrity checks live in:
-
-pgsql
-Copy code
-sql/sanity_checks_trino.sql
-They validate:
-
-primary key expectations
-
-null ratios
-
-referential integrity (artists ↔ aliases, masters ↔ releases)
-
-known Discogs inconsistencies (documented, not hidden)
-
-Run them after loading Parquet into Hive/Trino.
-
-🧪 Why DuckDB + Trino
-DuckDB
-
-fast
-
-local
-
-ideal for pipeline validation and tests
-
-Trino
-
-distributed SQL engine
-
-validates schemas at scale
-
-runs heavy analytical and showcase queries
-
-models realistic data-engineering workloads
-
-🧓 Legacy directory (important)
-legacy/ contains known-good historical scripts.
-
-They are:
-
-kept unchanged
-
-documented
-
-used as a reference baseline
-
-If a refactor diverges, legacy scripts exist to prove what used to work.
-
-🚫 What this repo is NOT
-not a Discogs scraper
-
-not a web app
-
-not a demo toy
-
-not shipping data
-
-It is pipeline and validation infrastructure.
-
-👤 Author
-Paolo Olivieri
-Sound engineer → data engineering pipelines
-Focus: correctness, reproducibility, and real-world data pain
-
-📜 Notes
-Discogs data is subject to Discogs licensing.
-This repository focuses on pipelines, tests, and tooling, not redistribution.
+This repository contains code only, not datasets.

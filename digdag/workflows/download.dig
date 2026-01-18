@@ -1,0 +1,18 @@
+_export:
+  !include : '_config.yml'
+
++download:
+  sh>: |
+    set -euo pipefail
+
+    # Avoid "unbound variable" if do_download isn't present for some reason
+    set +u
+    DO_DOWNLOAD_VAL="$do_download"
+    set -u
+
+    case "$DO_DOWNLOAD_VAL" in
+      true|TRUE|1) : ;;
+      *) echo "[DOWNLOAD] skipped (do_download=$DO_DOWNLOAD_VAL)" >&2; exit 0 ;;
+    esac
+
+    "$project_root/scripts/download_discogs_dumps.sh" "$dump_month" "$raw_root"

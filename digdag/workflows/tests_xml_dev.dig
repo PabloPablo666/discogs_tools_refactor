@@ -1,0 +1,46 @@
+_export:
+  !include : '_config.yml'
+
++tests_dev_xml:
+  sh>: |
+    set -euo pipefail
+
+    if [ "$run_mode" != "dev" ]; then
+      echo "[DEV XML TESTS] skipped (run_mode=$run_mode)" >&2
+      exit 0
+    fi
+
+    # qui sotto tutto il tuo script attuale…
+    BASE_LAKE="$(printenv DISCOGS_DATA_LAKE || true)"
+    if [ -z "$BASE_LAKE" ]; then
+      echo "ERROR: DISCOGS_DATA_LAKE is not set" >&2
+      exit 2
+    fi
+
+    RUN_ROOT="$BASE_LAKE/_runs/$run_id"
+    if [ ! -d "$RUN_ROOT" ]; then
+      echo "ERROR: RUN_ROOT does not exist (did ingest run?): $RUN_ROOT" >&2
+      exit 2
+    fi
+
+    export DISCOGS_DATA_LAKE="$RUN_ROOT"
+    export DISCOGS_TEST_ROOT="$BASE_LAKE/_tmp_dev_tests/$run_id"
+    mkdir -p "$DISCOGS_TEST_ROOT"
+
+    DUMP_DATE="$(python3 "$project_root/scripts/find_discogs_dump_date.py" --month "$dump_month")"
+    RAW="$raw_root/$dump_month"
+
+    ARTISTS="$(printf '%s/discogs_%s_artists.xml.gz'   "$RAW" "$DUMP_DATE")"
+    LABELS="$(printf '%s/discogs_%s_labels.xml.gz'    "$RAW" "$DUMP_DATE")"
+    MASTERS="$(printf '%s/discogs_%s_masters.xml.gz'  "$RAW" "$DUMP_DATE")"
+    RELEASES="$(printf '%s/discogs_%s_releases.xml.gz' "$RAW" "$DUMP_DATE")"
+
+    for f in "$ARTISTS" "$LABELS" "$MASTERS" "$RELEASES"; do
+      test -f "$f"
+    done
+
+    "$project_root/tests/run_test_artists_v1.sh" "$ARTISTS"
+    "$project_root/tests/run_test_artist_relations.sh" "$ARTISTS"
+    "$project_root/tests/run_test_masters_v1.sh" "$MASTERS"
+    "$project_root/tests/run_test_labels_v10.sh" "$LABELS"
+    "$project_root/tests/run_test_releases_v6.sh" "$RELEASES"

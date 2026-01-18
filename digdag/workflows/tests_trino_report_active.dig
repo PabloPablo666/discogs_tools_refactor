@@ -1,0 +1,64 @@
+_export:
+  !include : '_config.yml'
+
++report:
+  sh>: |
+    set -euo pipefail
+
+    BASE_LAKE="$(printenv DISCOGS_DATA_LAKE || true)"
+    if [ -z "$BASE_LAKE" ]; then
+      echo "ERROR: DISCOGS_DATA_LAKE is not set" >&2
+      exit 2
+    fi
+
+    ACTIVE="$BASE_LAKE/active"
+    if [ ! -L "$ACTIVE" ]; then
+      echo "ERROR: active is not a symlink: $ACTIVE" >&2
+      ls -la "$ACTIVE" >&2 || true
+      exit 2
+    fi
+
+    ACTIVE_TARGET="$(readlink "$ACTIVE")"
+    if [ -z "$ACTIVE_TARGET" ]; then
+      echo "ERROR: active target is empty (broken symlink?): $ACTIVE" >&2
+      exit 2
+    fi
+
+    case "$ACTIVE_TARGET" in
+      /*) RUN_DIR="$ACTIVE_TARGET" ;;
+      *)  RUN_DIR="$BASE_LAKE/$ACTIVE_TARGET" ;;
+    esac
+
+    TS="$(date +%Y%m%d_%H%M%S)"
+    REPORT_DIR="$RUN_DIR/_reports"
+    mkdir -p "$REPORT_DIR"
+
+    SQL_FILE="$project_root/sql/sanity_report_active_v1.sql"
+    OUT_CSV="$REPORT_DIR/trino_sanity_active_$TS.csv"
+    OUT_LOG="$REPORT_DIR/trino_sanity_active_$TS.log"
+
+    echo "[TRINO SANITY REPORT]"
+    echo " run_dir : $RUN_DIR"
+    echo " csv     : $OUT_CSV"
+    echo " log     : $OUT_LOG"
+
+    if ! docker exec -i "$trino_container" trino --output-format CSV \
+      < "$SQL_FILE" \
+      > "$OUT_CSV" \
+      2> "$OUT_LOG"
+    then
+      echo "❌ Trino sanity query failed. Log tail:" >&2
+      tail -n 200 "$OUT_LOG" >&2 || true
+      exit 2
+    fi
+
+    echo "✔ CSV generated"
+
+    # 🚨 HARD GATE: FAIL PIPELINE ON CRITICAL
+    if grep -q '^"[^"]*","CRITICAL","[^"]*","false"' "$OUT_CSV"; then
+      echo "❌ CRITICAL sanity checks failed" >&2
+      echo "   see: $OUT_CSV" >&2
+      exit 2
+    fi
+
+    echo "✅ All CRITICAL sanity checks passed"

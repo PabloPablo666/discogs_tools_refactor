@@ -1,0 +1,72 @@
+_export:
+  !include : '_config.yml'
+  dry_run: false
+
++preflight:
+  sh>: |
+    set -euo pipefail
+
+    BASE_LAKE="$(printenv DISCOGS_DATA_LAKE || true)"
+    if [ -z "$BASE_LAKE" ]; then
+      echo "ERROR: DISCOGS_DATA_LAKE is not set (must point to .../hive-data)" >&2
+      exit 2
+    fi
+
+    RUN_ROOT="$BASE_LAKE/_runs/$run_id"
+    if [ ! -d "$RUN_ROOT" ]; then
+      echo "ERROR: RUN_ROOT does not exist: $RUN_ROOT" >&2
+      exit 2
+    fi
+
+    echo "==============================================" >&2
+    echo " BUILD (RUN-BASED)" >&2
+    echo " BaseLake: $BASE_LAKE" >&2
+    echo " RunRoot:  $RUN_ROOT" >&2
+    echo " dry_run:  $dry_run" >&2
+    echo "==============================================" >&2
+
+    for d in "$RUN_ROOT/artists_v1_typed" "$RUN_ROOT/releases_v6" "$RUN_ROOT/labels_v10"; do
+      [ -d "$d" ] || { echo "ERROR: missing required dir in run: $d" >&2; exit 2; }
+    done
+
+    for s in \
+      "$project_root/pipelines/build_artist_name_map_v1.py" \
+      "$project_root/pipelines/build_release_artists_xref_v1.py" \
+      "$project_root/pipelines/build_release_label_xref_v1.py" \
+      "$project_root/pipelines/build_release_style_genre_xref_v1.py"
+    do
+      [ -f "$s" ] || { echo "ERROR: missing script: $s" >&2; exit 2; }
+    done
+
++build_warehouse:
+  sh>: |
+    set -euo pipefail
+
+    BASE_LAKE="$(printenv DISCOGS_DATA_LAKE || true)"
+    RUN_ROOT="$BASE_LAKE/_runs/$run_id"
+
+    # Force builders to read/write inside RUN_ROOT
+    export DISCOGS_DATA_LAKE="$RUN_ROOT"
+
+    if [ "$dry_run" = "true" ]; then
+      echo "[DRY-RUN] Would build warehouse under: $RUN_ROOT/warehouse_discogs" >&2
+      echo "  python3 build_artist_name_map_v1.py --clean" >&2
+      echo "  python3 build_release_artists_xref_v1.py --clean" >&2
+      echo "  python3 build_release_label_xref_v1.py --clean" >&2
+      echo "  python3 build_release_style_genre_xref_v1.py --clean" >&2
+      exit 0
+    fi
+
+    cd "$project_root/pipelines"
+    python3 build_artist_name_map_v1.py --clean
+    python3 build_release_artists_xref_v1.py --clean
+    python3 build_release_label_xref_v1.py --clean
+    python3 build_release_style_genre_xref_v1.py --clean
+
++summary:
+  sh>: |
+    set -euo pipefail
+    BASE_LAKE="$(printenv DISCOGS_DATA_LAKE || true)"
+    RUN_ROOT="$BASE_LAKE/_runs/$run_id"
+    echo "✅ BUILD completed. Outputs under: $RUN_ROOT/warehouse_discogs" >&2
+    ls -la "$RUN_ROOT/warehouse_discogs" || true
