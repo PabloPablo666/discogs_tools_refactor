@@ -1,0 +1,15 @@
+_export:
+  !include : '_config.yml'
+
++reconcile:
+  sh>: |
+    set -euo pipefail
+
+    TRINO_CONTAINER="${trino_container}"
+    TRINO_CATALOG="${trino_catalog}"
+    PROJECT_ROOT="${project_root}"
+
+    # Digdag orchestration only: call Python
+    python3 "$PROJECT_ROOT/scripts/reconcile_register.py" \
+      --trino-container "$TRINO_CONTAINER" \
+      --trino-catalog "$TRINO_CATALOG"

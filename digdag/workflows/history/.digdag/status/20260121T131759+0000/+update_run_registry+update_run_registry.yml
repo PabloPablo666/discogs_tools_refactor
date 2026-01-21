@@ -1,0 +1,10 @@
+fullName: "+update_run_registry+update_run_registry"
+state: "success"
+result:
+  subtaskConfig: {}
+  exportParams: {}
+  resetStoreParams: []
+  storeParams: {}
+  report:
+    inputs: []
+    outputs: []

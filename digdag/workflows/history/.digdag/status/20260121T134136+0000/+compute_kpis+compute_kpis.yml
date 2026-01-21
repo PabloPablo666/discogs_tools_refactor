@@ -1,0 +1,10 @@
+fullName: "+compute_kpis+compute_kpis"
+state: "success"
+result:
+  subtaskConfig: {}
+  exportParams: {}
+  resetStoreParams: []
+  storeParams: {}
+  report:
+    inputs: []
+    outputs: []

@@ -1,0 +1,74 @@
+_export:
+  !include : '_config.yml'
+
++reconcile_register:
+  sh>: |
+    set -euo pipefail
+
+    TRINO_CONTAINER="${trino_container}"
+    TRINO_CATALOG="${trino_catalog}"
+    PROJECT_ROOT="${project_root}"
+
+    if [ -z "$(printenv DISCOGS_DATA_LAKE || true)" ]; then
+      echo "ERROR: DISCOGS_DATA_LAKE not set" >&2
+      exit 2
+    fi
+
+    python3 "$PROJECT_ROOT/scripts/reconcile_register.py" \
+      --trino-container "$TRINO_CONTAINER" \
+      --trino-catalog "$TRINO_CATALOG"
+
++update_run_registry:
+  sh>: |
+    set -euo pipefail
+
+    TRINO_CONTAINER="${trino_container}"
+    TRINO_CATALOG="${trino_catalog}"
+    PROJECT_ROOT="${project_root}"
+
+    if [ -z "$(printenv DISCOGS_DATA_LAKE || true)" ]; then
+      echo "ERROR: DISCOGS_DATA_LAKE not set" >&2
+      exit 2
+    fi
+
+    python3 "$PROJECT_ROOT/scripts/update_run_registry.py" \
+      --trino-container "$TRINO_CONTAINER" \
+      --trino-catalog "$TRINO_CATALOG" \
+      --action history_pipeline \
+      --schema-version 1 \
+      --include-active
+
++compute_kpis:
+  sh>: |
+    set -euo pipefail
+
+    TRINO_CONTAINER="${trino_container}"
+    TRINO_CATALOG="${trino_catalog}"
+    PROJECT_ROOT="${project_root}"
+
+    if [ -z "$(printenv DISCOGS_DATA_LAKE || true)" ]; then
+      echo "ERROR: DISCOGS_DATA_LAKE not set" >&2
+      exit 2
+    fi
+
+    python3 "$PROJECT_ROOT/scripts/compute_kpis.py" \
+      --trino-container "$TRINO_CONTAINER" \
+      --trino-catalog "$TRINO_CATALOG" \
+      --schema-version 1
+
++export_history_csv:
+  sh>: |
+    set -euo pipefail
+
+    TRINO_CONTAINER="${trino_container}"
+    TRINO_CATALOG="${trino_catalog}"
+    PROJECT_ROOT="${project_root}"
+
+    if [ -z "$(printenv DISCOGS_DATA_LAKE || true)" ]; then
+      echo "ERROR: DISCOGS_DATA_LAKE not set" >&2
+      exit 2
+    fi
+
+    python3 "$PROJECT_ROOT/scripts/export_history_csv.py" \
+      --trino-container "$TRINO_CONTAINER" \
+      --trino-catalog "$TRINO_CATALOG"

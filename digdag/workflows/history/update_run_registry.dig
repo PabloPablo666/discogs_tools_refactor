@@ -1,0 +1,17 @@
+_export:
+  !include : '_config.yml'
+
++update_run_registry:
+  sh>: |
+    set -euo pipefail
+
+    TRINO_CONTAINER="${trino_container}"
+    TRINO_CATALOG="${trino_catalog}"
+    PROJECT_ROOT="${project_root}"
+
+    python3 "$PROJECT_ROOT/scripts/update_run_registry.py" \
+      --trino-container "$TRINO_CONTAINER" \
+      --trino-catalog "$TRINO_CATALOG" \
+      --action reconcile_register \
+      --schema-version 1 \
+      --include-active

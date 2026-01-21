@@ -1,0 +1,34 @@
+set -euo pipefail
+
+TRINO_CONTAINER="trino"
+TRINO_CATALOG="hive"
+PROJECT_ROOT="/Users/paoloolivieri/discogs_tools_refactor"
+
+echo "==============================================" >&2
+echo " COMPUTE KPIs (history)" >&2
+echo " trino  : container=$TRINO_CONTAINER catalog=$TRINO_CATALOG" >&2
+echo " root   : $PROJECT_ROOT" >&2
+echo " lake   : $(printenv DISCOGS_DATA_LAKE || true)" >&2
+echo "==============================================" >&2
+
+if [ -z "$(printenv DISCOGS_DATA_LAKE || true)" ]; then
+  echo "ERROR: DISCOGS_DATA_LAKE not set" >&2
+  exit 2
+fi
+if [ -z "$TRINO_CONTAINER" ]; then
+  echo "ERROR: trino_container empty (check _config.yml)" >&2
+  exit 2
+fi
+if [ -z "$TRINO_CATALOG" ]; then
+  echo "ERROR: trino_catalog empty (check _config.yml)" >&2
+  exit 2
+fi
+if [ -z "$PROJECT_ROOT" ]; then
+  echo "ERROR: project_root empty (check _config.yml)" >&2
+  exit 2
+fi
+
+python3 "$PROJECT_ROOT/scripts/compute_kpis.py" \
+  --trino-container "$TRINO_CONTAINER" \
+  --trino-catalog "$TRINO_CATALOG" \
+  --schema-version 1

@@ -1,0 +1,18 @@
+# -----------------------------
+# History workflows config
+# -----------------------------
+
+project_root: /Users/paoloolivieri/discogs_tools_refactor
+raw_root: /Users/paoloolivieri/discogs_store/raw
+
+# Data lake root on host
+# IMPORTANT: this must be the lake root containing _runs/, active/, etc.
+# Example: /Users/.../discogs_data_lake/hive-data
+# (You already export DISCOGS_DATA_LAKE in your shell; this is just for reference.)
+
+# Trino
+trino_container: trino
+trino_catalog: hive
+
+# Defaults (optional)
+run_mode: history
