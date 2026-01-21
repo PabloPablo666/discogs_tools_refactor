@@ -135,6 +135,7 @@ Design principles
 XML dumps are processed incrementally.
 No full-file memory loading.
 
+
 2) Typed-first schemas
 	•	numeric IDs where possible
 	•	explicit column types
@@ -165,12 +166,45 @@ Every run must pass:
 	•	schema validation
 	•	referential integrity checks
 
-7) Reports after promotion
 
+7) Reports after promotion
 
 After promotion, Trino runs full SQL sanity checks and produces CSV reports.
 
 These reports live alongside the run forever.
+
+
+8) Historical observability (runs & KPIs)
+
+In addition to data production, this repository includes a dedicated
+historical observability layer.
+
+This layer does not produce or modify datasets.
+It observes completed runs and records metadata about them.
+
+It provides:
+	•	append-only run registry
+	•	run-level status tracking
+	•	schema registration verification
+	•	historical KPI snapshots
+	•	longitudinal comparisons across Discogs dumps
+
+All historical metadata is stored separately under:
+hive-data/_meta/discogs_history/
+
+This enables:
+	•	reproducible auditing of past runs
+	•	trend analysis across Discogs versions
+	•	detection of structural or volume regressions
+	•	long-term lakehouse monitoring
+
+Historical workflows are fully isolated from the main pipeline
+and never modify _runs or active.
+
+See:
+digdag/workflows/history/
+
+for details
 
 ================================================================================
 
