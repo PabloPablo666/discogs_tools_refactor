@@ -30,3 +30,10 @@ __pycache__/
 
 # digdag runtime (if launched from workflows dir)
 digdag/workflows/.digdag/
+
+# Digdag local state (NEVER commit)
+.digdag/
+**/.digdag/
+**/.digdag/**
+**/.run_ids.txt
+**/.run_ids*.txt
