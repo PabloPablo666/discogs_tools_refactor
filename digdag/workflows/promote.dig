@@ -6,11 +6,26 @@ _export:
   sh>: |
     set -euo pipefail
 
-    # -------------------------------------------------
-    # DEV SAFETY
-    # -------------------------------------------------
-    if [ "$run_mode" = "dev" ]; then
-      echo "[PROMOTE] skipped (run_mode=dev)" >&2
+    # Read vars safely under set -u (in case they are not provided)
+    set +u
+    RUN_MODE="$run_mode"
+    ALLOW_PROMOTE="$allow_promote"
+    OVERRIDE="$promote_run_id"
+    set -u
+
+    # Defaults: avoid bash-style parameter expansion
+    if [ -z "$RUN_MODE" ]; then RUN_MODE="unset"; fi
+    if [ -z "$ALLOW_PROMOTE" ]; then ALLOW_PROMOTE="unset"; fi
+
+    echo "[PROMOTE GUARD] run_mode=$RUN_MODE allow_promote=$ALLOW_PROMOTE" >&2
+
+    if [ "$RUN_MODE" != "prod" ]; then
+      echo "[PROMOTE] skipped: promote allowed only in prod (run_mode=$RUN_MODE)" >&2
+      exit 0
+    fi
+
+    if [ "$ALLOW_PROMOTE" != "true" ]; then
+      echo "[PROMOTE] skipped: allow_promote must be true (allow_promote=$ALLOW_PROMOTE)" >&2
       exit 0
     fi
 
@@ -20,13 +35,10 @@ _export:
       exit 2
     fi
 
-    # Default: promote current run
     PROMOTE_RUN_ID="$run_id"
-    set +u
-    if [ -n "$promote_run_id" ]; then
-      PROMOTE_RUN_ID="$promote_run_id"
+    if [ -n "$OVERRIDE" ]; then
+      PROMOTE_RUN_ID="$OVERRIDE"
     fi
-    set -u
 
     if [ -z "$PROMOTE_RUN_ID" ]; then
       echo "ERROR: PROMOTE_RUN_ID is empty" >&2

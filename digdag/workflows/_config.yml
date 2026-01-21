@@ -2,7 +2,7 @@ project_root: /Users/paoloolivieri/discogs_tools_refactor
 raw_root: /Users/paoloolivieri/discogs_store/raw
 
 # deterministic RUN ID of the session
-run_id: ${moment(session_time).format("YYYYMMDD_HHmmss")}
+run_id: ${dump_month}__${moment(session_time).format("YYYYMMDD_HHmmss")}
 
 # Trino
 trino_container: trino
@@ -10,5 +10,7 @@ trino_catalog: hive
 trino_schema: discogs
 
 # defaults pipeline (overridable with CLI & -p)
-run_mode: prod
-do_download: true
+
+do_xml_tests: false
+do_download: false
+allow_promote: true

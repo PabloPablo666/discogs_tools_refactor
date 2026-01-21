@@ -30,10 +30,14 @@ _export:
   call>: tests_parquet_run.dig
 
 +tests_dev_xml:
-  call>: tests_xml_dev.dig
+  if>: ${run_mode == "prod" && do_xml_tests}
+  _do:
+    call>: tests_xml_dev.dig
 
 +promote:
-  call>: promote.dig
+  if>: ${run_mode == "prod" && allow_promote}
+  _do:
+    call>: promote.dig
 
 +tests_parquet_active:
   call>: tests_parquet_active.dig
