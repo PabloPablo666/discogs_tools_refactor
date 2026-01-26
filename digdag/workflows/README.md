@@ -214,6 +214,7 @@ This provides a permanent audit trail.
 From the main/ workflows directory:
 
 *SESSION="$(date -u '+%Y-%m-%d %H:%M:%S')"
+
 digdag run main.dig \
   --session "$SESSION"*
 
@@ -226,7 +227,7 @@ digdag run main.dig \
 
 ## Design guarantees
 
-This pipeline provides:
+This pipeline provides
 	•	✅ immutable historical snapshots
 	•	✅ atomic publishing
 	•	✅ reproducibility
