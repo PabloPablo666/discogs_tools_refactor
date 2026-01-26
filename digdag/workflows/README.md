@@ -186,7 +186,7 @@ The previous pointer is preserved automatically:
 
 Promotion guardrails
 
-Only runs executed with run_mode=prod and allow_promote=true
+Only runs executed with **run_mode=prod** and **allow_promote=true**
 are allowed to modify the active dataset pointer.
 
 All other executions produce fully valid run snapshots
