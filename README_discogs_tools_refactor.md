@@ -1,4 +1,4 @@
-Discogs Data Lake · Pipelines, Runs & Validation
+#Discogs Data Lake · Pipelines, Runs & Validation
 
 This repository contains the pipeline, validation and orchestration layer
 of a local Discogs lakehouse, designed with run-based execution, immutable snapshots
@@ -12,7 +12,7 @@ Infrastructure (Trino + Hive Metastore) lives in a separate repository.
 ================================================================================
 
 
-What this repository is
+#What this repository is
 
 A production-style data pipeline system that:
 	•	ingests Discogs XML dumps via streaming parsers
