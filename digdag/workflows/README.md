@@ -227,7 +227,8 @@ digdag run main.dig \
 
 ## Design guarantees
 
-This pipeline provides
+This pipeline provides:
+
 	•	✅ immutable historical snapshots
 	•	✅ atomic publishing
 	•	✅ reproducibility
