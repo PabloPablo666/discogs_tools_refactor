@@ -219,11 +219,8 @@ This layer:
 - longitudinal comparisons across Discogs dumps
 
 All historical metadata is stored under:
-
 ```text
 hive-data/_meta/discogs_history/
-
-
 
 
 ## Output datasets
