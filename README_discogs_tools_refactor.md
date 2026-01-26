@@ -1,4 +1,4 @@
-#Discogs Data Lake · Pipelines, Runs & Validation
+# Discogs Data Lake · Pipelines, Runs & Validation
 
 This repository contains the pipeline, validation and orchestration layer
 of a local Discogs lakehouse, designed with run-based execution, immutable snapshots
@@ -12,7 +12,7 @@ Infrastructure (Trino + Hive Metastore) lives in a separate repository.
 ================================================================================
 
 
-#What this repository is
+## What this repository is
 
 A production-style data pipeline system that:
 	•	ingests Discogs XML dumps via streaming parsers
@@ -29,7 +29,7 @@ It ships deterministic code that produces versioned datasets.
 ================================================================================
 
 
-High-level architecture
+## High-level architecture
 
 Discogs XML dumps
         ↓
@@ -50,10 +50,10 @@ Each execution is isolated in its own run directory.
 ================================================================================
 
 
-Run-based design
+## Run-based design
 
 Every pipeline execution creates an immutable snapshot:
-
+```text
 hive-data/
 └── _runs/
     └── YYYYMMDD_HHMMSS/
@@ -63,6 +63,7 @@ hive-data/
         ├── labels_v10/
         ├── warehouse_discogs/
         └── _reports/
+```
 
 Nothing is overwritten.
 
