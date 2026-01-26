@@ -256,6 +256,7 @@ It behaves like a real lakehouse ingestion system.
 The main pipeline produces data.
 
 The history pipeline consumes completed runs to:
+
 	•	register historical schemas
 	•	compute KPIs
 	•	track dataset growth
