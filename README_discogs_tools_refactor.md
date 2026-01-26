@@ -72,7 +72,7 @@ Old runs are never modified.
 ================================================================================
 
 
-Active dataset pointer
+## Active dataset pointer
 
 Consumers (Trino, SQL, analytics) never query _runs directly.
 
@@ -91,8 +91,8 @@ Benefits:
 ================================================================================
 
 
-Repository structure
-
+## Repository structure
+```text
 discogs_tools_refactor/
 ├── pipelines/          # Streaming ingestion & transforms
 │   ├── extract_artists_v1.py
@@ -124,43 +124,43 @@ discogs_tools_refactor/
 │   └── (immutable)
 │
 └── README.md
-
+```
 ================================================================================
 
 
-Design principles
+## Design principles
 
 
-1) Streaming only
+1) **Streaming only**
 
 XML dumps are processed incrementally.
 No full-file memory loading.
 
 
-2) Typed-first schemas
+2) **Typed-first schemas**
 	•	numeric IDs where possible
 	•	explicit column types
 	•	Trino-safe schemas
 	•	no implicit inference
 
 
-3) Deterministic outputs
+3) **Deterministic outputs**
 
 Same input dump → same parquet layout → same results.
 
 
-4) Immutable runs
+4) **Immutable runs**
 
 Data is never overwritten.
 Only new runs are created.
 
 
-5)Promotion, not overwrite
+5) **Promotion, not overwrite**
 
 Publishing is explicit and reversible.
 
 
-6) Tests before trust
+6) **Tests before trust**
 
 Every run must pass:
 	•	parquet-level sanity checks
@@ -168,14 +168,14 @@ Every run must pass:
 	•	referential integrity checks
 
 
-7) Reports after promotion
+7) **Reports after promotion**
 
 After promotion, Trino runs full SQL sanity checks and produces CSV reports.
 
 These reports live alongside the run forever.
 
 
-8) Historical observability (runs & KPIs)
+8) **Historical observability** (runs & KPIs)
 
 In addition to data production, this repository includes a dedicated
 historical observability layer.
@@ -183,7 +183,7 @@ historical observability layer.
 This layer does not produce or modify datasets.
 It observes completed runs and records metadata about them.
 
-It provides:
+### It provides:
 	•	append-only run registry
 	•	run-level status tracking
 	•	schema registration verification
@@ -193,7 +193,7 @@ It provides:
 All historical metadata is stored separately under:
 hive-data/_meta/discogs_history/
 
-This enables:
+### This enables:
 	•	reproducible auditing of past runs
 	•	trend analysis across Discogs versions
 	•	detection of structural or volume regressions
@@ -210,14 +210,14 @@ for details
 ================================================================================
 
 
-Output datasets
+## Output datasets
 
 All data is written under a lake root:
 
 DISCOGS_DATA_LAKE=/absolute/path/to/discogs_data_lake/hive-data
 
 
-Canonical typed datasets
+### Canonical typed datasets
 
 artists_v1_typed/
 artist_aliases_v1_typed/
@@ -228,7 +228,7 @@ labels_v10/
 collection/
 
 
-Warehouse datasets
+### Warehouse datasets
 
 warehouse_discogs/
 ├── artist_name_map_v1/
@@ -241,11 +241,11 @@ warehouse_discogs/
 ================================================================================
 
 
-Validation strategy
+## Validation strategy
 
 DuckDB tests (run-level)
 
-Used for:
+### Used for:
 	•	pipeline correctness
 	•	regression detection
 	•	fast feedback during development
@@ -255,7 +255,7 @@ Runs on isolated _tmp_test/ paths.
 
 Trino sanity reports (active-level)
 
-Executed after promotion:
+### Executed after promotion:
 	•	validates real query behavior
 	•	checks cross-table integrity
 	•	produces CSV audit reports
@@ -263,16 +263,16 @@ Executed after promotion:
 ================================================================================
 
 
-Known Discogs inconsistencies
+## Known Discogs inconsistencies
 
 Discogs data is not clean by design.
 
-Examples:
+### Examples:
 	•	alias IDs not resolvable to artists
 	•	partial group memberships
 	•	label parent references missing
 
-Tests distinguish between:
+### Tests distinguish between:
 	•	expected upstream anomalies
 	•	unexpected pipeline regressions
 
@@ -281,7 +281,7 @@ Nothing is silently ignored.
 ================================================================================
 
 
-What this repository is NOT
+### What this repository is NOT
 	•	not a scraper
 	•	not a downloader only
 	•	not an overwrite-based ETL
@@ -292,7 +292,7 @@ It is a versioned data production system.
 ================================================================================
 
 
-Notes
+## Notes
 
 Discogs data is subject to Discogs licensing terms.
 
