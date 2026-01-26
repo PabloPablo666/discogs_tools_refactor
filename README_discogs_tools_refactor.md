@@ -130,82 +130,98 @@ discogs_tools_refactor/
 
 ## Design principles
 
-
-1) **Streaming only**
+### 1. Streaming only
 
 XML dumps are processed incrementally.
-No full-file memory loading.
 
+- no full-file memory loading
+- constant memory footprint
+- suitable for large Discogs dumps
 
-2) **Typed-first schemas**
-	•	numeric IDs where possible
-	•	explicit column types
-	•	Trino-safe schemas
-	•	no implicit inference
+---
 
+### 2. Typed-first schemas
 
-3) **Deterministic outputs**
+All datasets are defined explicitly before ingestion.
+
+- numeric IDs where possible
+- explicit column types
+- Trino-safe schemas
+- no implicit type inference
+
+---
+
+### 3. Deterministic outputs
 
 Same input dump → same parquet layout → same results.
 
+No randomness, no environment-dependent behavior.
 
-4) **Immutable runs**
+---
+
+### 4. Immutable runs
 
 Data is never overwritten.
-Only new runs are created.
 
+- each execution creates a new run
+- previous runs are read-only
+- historical state is preserved forever
 
-5) **Promotion, not overwrite**
+---
+
+### 5. Promotion, not overwrite
 
 Publishing is explicit and reversible.
 
+- runs are promoted intentionally
+- no automatic replacement of existing data
+- rollback is always possible
 
-6) **Tests before trust**
+---
 
-Every run must pass:
-	•	parquet-level sanity checks
-	•	schema validation
-	•	referential integrity checks
+### 6. Tests before trust
 
+Every run must pass mandatory validation checks:
 
-7) **Reports after promotion**
+- parquet-level sanity checks
+- schema validation
+- referential integrity checks
 
-After promotion, Trino runs full SQL sanity checks and produces CSV reports.
+---
 
-These reports live alongside the run forever.
+### 7. Reports after promotion
 
+After promotion, Trino executes full SQL sanity checks and produces CSV reports.
 
-8) **Historical observability** (runs & KPIs)
+- reports are generated post-promotion
+- outputs are immutable
+- reports live alongside the run forever
 
-In addition to data production, this repository includes a dedicated
+---
+
+### 8. Historical observability (runs & KPIs)
+
+In addition to data production, the repository includes a dedicated
 historical observability layer.
 
-This layer does not produce or modify datasets.
-It observes completed runs and records metadata about them.
+This layer:
 
-### It provides:
-	•	append-only run registry
-	•	run-level status tracking
-	•	schema registration verification
-	•	historical KPI snapshots
-	•	longitudinal comparisons across Discogs dumps
+- does **not** produce datasets
+- does **not** modify existing runs
+- only observes completed executions
 
-All historical metadata is stored separately under:
+#### It provides
+
+- append-only run registry
+- run-level status tracking
+- schema registration verification
+- historical KPI snapshots
+- longitudinal comparisons across Discogs dumps
+
+All historical metadata is stored under:
+
+```text
 hive-data/_meta/discogs_history/
-
-### This enables:
-	•	reproducible auditing of past runs
-	•	trend analysis across Discogs versions
-	•	detection of structural or volume regressions
-	•	long-term lakehouse monitoring
-
-Historical workflows are fully isolated from the main pipeline
-and never modify _runs or active.
-
-See:
-*digdag/workflows/history/*
-
-for details
 
 
 
