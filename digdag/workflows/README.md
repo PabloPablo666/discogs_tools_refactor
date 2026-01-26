@@ -139,7 +139,7 @@ The run ID is generated once and propagated to all tasks.
 	•	no full-file loading
 	•	constant memory usage
 
-Typed canonical datasets are written:
+Typed canonical datasets are written
 	•	artists
 	•	labels
 	•	masters
@@ -150,7 +150,6 @@ Each entity is written independently.
 
 
 ### 4. Warehouse build
-
 Derived analytical tables are generated
 	•	artist_name_map_v1
 	•	release_artists_v1
