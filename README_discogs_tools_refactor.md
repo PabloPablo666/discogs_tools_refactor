@@ -78,7 +78,7 @@ Consumers (Trino, SQL, analytics) never query _runs directly.
 
 Instead, a single symbolic link is used:
 
-hive-data/active -> _runs/20260117_192144
+*hive-data/active -> _runs/20260117_192144*
 
 Promotion switches this pointer atomically.
 
@@ -203,7 +203,7 @@ Historical workflows are fully isolated from the main pipeline
 and never modify _runs or active.
 
 See:
-digdag/workflows/history/
+*digdag/workflows/history/*
 
 for details
 
@@ -214,7 +214,7 @@ for details
 
 All data is written under a lake root:
 
-DISCOGS_DATA_LAKE=/absolute/path/to/discogs_data_lake/hive-data
+*DISCOGS_DATA_LAKE=/absolute/path/to/discogs_data_lake/hive-data*
 
 
 ### Canonical typed datasets
@@ -250,7 +250,7 @@ DuckDB tests (run-level)
 	•	regression detection
 	•	fast feedback during development
 
-Runs on isolated _tmp_test/ paths.
+Runs on isolated *_tmp_test/ paths*.
 
 
 Trino sanity reports (active-level)
