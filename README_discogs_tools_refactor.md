@@ -276,7 +276,7 @@ Trino sanity reports (active-level)
 	•	checks cross-table integrity
 	•	produces CSV audit reports
 
-================================================================================
+
 
 
 ## Known Discogs inconsistencies
@@ -294,7 +294,7 @@ Discogs data is not clean by design.
 
 Nothing is silently ignored.
 
-================================================================================
+
 
 
 ### What this repository is NOT
@@ -305,7 +305,7 @@ Nothing is silently ignored.
 
 It is a versioned data production system.
 
-================================================================================
+
 
 
 ## Notes
