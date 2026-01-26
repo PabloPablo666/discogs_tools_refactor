@@ -9,7 +9,7 @@ auditable data production system.
 
 Infrastructure (Trino + Hive Metastore) lives in a separate repository.
 
-================================================================================
+
 
 
 ## What this repository is
@@ -26,7 +26,7 @@ This repository does not ship data.
 
 It ships deterministic code that produces versioned datasets.
 
-================================================================================
+
 
 
 ## High-level architecture
@@ -47,7 +47,7 @@ Post-promotion Trino sanity report
 
 Each execution is isolated in its own run directory.
 
-================================================================================
+
 
 
 ## Run-based design
@@ -69,7 +69,7 @@ Nothing is overwritten.
 
 Old runs are never modified.
 
-================================================================================
+
 
 
 ## Active dataset pointer
@@ -88,7 +88,7 @@ Benefits:
 	•	stable table locations
 	•	reproducible historical runs
 
-================================================================================
+
 
 
 ## Repository structure
@@ -125,7 +125,7 @@ discogs_tools_refactor/
 │
 └── README.md
 ```
-================================================================================
+
 
 
 ## Design principles
@@ -207,7 +207,7 @@ See:
 
 for details
 
-================================================================================
+
 
 
 ## Output datasets
@@ -229,7 +229,7 @@ collection/
 
 
 ### Warehouse datasets
-
+```text
 warehouse_discogs/
 ├── artist_name_map_v1/
 ├── release_artists_v1/
@@ -237,8 +237,8 @@ warehouse_discogs/
 ├── label_release_counts_v1/
 ├── release_style_xref_v1/
 └── release_genre_xref_v1/
+```
 
-================================================================================
 
 
 ## Validation strategy
