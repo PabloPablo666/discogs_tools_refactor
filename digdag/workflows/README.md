@@ -15,6 +15,7 @@ It behaves like a real production data platform, while remaining fully reproduci
 ## Overview
 
 Each execution of the main pipeline:
+
 	1.	Creates a new immutable run
 	2.	Ingests and transforms Discogs dumps
 	3.	Performs validation checks
