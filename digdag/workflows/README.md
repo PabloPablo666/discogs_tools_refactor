@@ -1,8 +1,8 @@
-Discogs Main Pipeline (Digdag)
+# Discogs Main Pipeline (Digdag)
 
-==========================================
 
-Run-based ingestion and active dataset publishing
+
+## Run-based ingestion and active dataset publishing
 
 This directory contains the main Discogs data pipeline, orchestrated with Digdag, responsible for producing the active Discogs dataset used by Trino consumers.
 
@@ -10,9 +10,9 @@ The pipeline follows a run-based lakehouse architecture with immutable snapshots
 
 It behaves like a real production data platform, while remaining fully reproducible on a local machine.
 
-==========================================
 
-Overview
+
+## Overview
 
 Each execution of the main pipeline:
 	1.	Creates a new immutable run
@@ -23,34 +23,34 @@ Each execution of the main pipeline:
 
 No data is ever overwritten.
 
-Only a symbolic pointer is moved.
+**Only a symbolic pointer is moved**.
 
-===========================================
 
-High-level architecture
 
+## High-level architecture
+```text
 discogs_tools_refactor/
 └── digdag/
     └── workflows/
         ├── main/      ← ingestion & publishing
         └── history/   ← historical analysis & KPIs
-
+```
 This README documents the main pipeline only.
 
-=============================================
 
-Core concepts
+
+## Core concepts
 
 Run-based architecture
 
 Every pipeline execution creates a unique run:
-
+```text
 $DISCOGS_DATA_LAKE/
 └── _runs/
     └── <run_id>/
-
+```
 Example:
-2026-01__20260120_205549
+*2026-01__20260120_205549*
 
 Each run is:
 	•	immutable
@@ -58,14 +58,14 @@ Each run is:
 	•	queryable later
 	•	never modified after creation
 
-==============================================
 
-Active pointer (publish layer)
+
+## Active pointer (publish layer)
 
 Consumers never read directly from _runs.
 
 Instead, a symbolic link defines the active dataset:
-hive-data/active -> _runs/<run_id>
+*hive-data/active -> _runs/<run_id>*
 
 This provides:
 	•	zero-downtime publishing
@@ -75,12 +75,12 @@ This provides:
 Only the pointer moves.
 The data never does.
 
-===============================================
 
-Physical data layout
+
+## Physical data layout
 
 Each run snapshot contains Parquet-only datasets:
-
+```text
 _runs/<run_id>/
 ├── artists_v1_typed/
 ├── artist_aliases_v1_typed/
@@ -93,15 +93,15 @@ _runs/<run_id>/
 ├── label_release_counts_v1/
 ├── genre/style xref tables
 └── _reports/
-
+```
 All directories contain Parquet files only.
 
-===============================================
 
-Logical access (Trino)
+
+## Logical access (Trino)
 
 Trino external tables always point to:
-file:/data/hive-data/active/...
+*file:/data/hive-data/active/...*
 
 As a result:
 	•	SQL never changes
@@ -112,13 +112,13 @@ Only the active pointer updates.
 
 This mirrors how production lakehouses operate.
 
-===============================================
 
-Pipeline lifecycle
+
+## Pipeline lifecycle
 
 The Digdag workflow follows a strict sequence.
 
-1. Preflight
+### 1. Preflight
 	•	validate environment variables
 	•	verify dump availability
 	•	compute run_id
@@ -126,15 +126,15 @@ The Digdag workflow follows a strict sequence.
 The run ID is generated once and propagated to all tasks.
 
 
-2. Download (optional)
+### 2. Download (optional)
 	•	downloads Discogs dumps by month
 	•	idempotent
 	•	skips existing files
 
-Safe to re-run.
+**Safe to re-run.**
 
 
-3. Ingest
+### 3. Ingest
 	•	streaming XML parsing
 	•	no full-file loading
 	•	constant memory usage
@@ -149,7 +149,7 @@ Typed canonical datasets are written:
 Each entity is written independently.
 
 
-4. Warehouse build
+### 4. Warehouse build
 
 Derived analytical tables are generated:
 	•	artist_name_map_v1
@@ -161,7 +161,7 @@ Derived analytical tables are generated:
 These tables are optimized for analytics, not raw storage.
 
 
-5. Run-level sanity checks
+### 5. Run-level sanity checks
 
 Before promotion, filesystem-level checks are executed:
 	•	required datasets exist
@@ -173,15 +173,15 @@ If any check fails, the run is aborted.
 Nothing is published.
 
 
-6. Promotion
+### 6. Promotion
 
 If all checks pass:
-active -> _runs/<run_id>
+*active -> _runs/<run_id>*
 
 The previous pointer is preserved automatically:
-active__prev_<timestamp>
+*active__prev_<timestamp>*
 
-7. Promotion guardrails
+### 7. Promotion guardrails
 
 Promotion guardrails
 
@@ -192,7 +192,7 @@ All other executions produce fully valid run snapshots
 but never affect published data.
 
 
-8. Post-promotion Trino sanity report
+### 8. Post-promotion Trino sanity report
 
 After publishing, Trino-based validations are executed on the active dataset:
 	•	row counts
@@ -202,28 +202,28 @@ After publishing, Trino-based validations are executed on the active dataset:
 	•	cross-table consistency
 
 Results are exported as CSV:
-_runs/<run_id>/_reports/trino_sanity_active_<timestamp>.csv
+*_runs/<run_id>/_reports/trino_sanity_active_<timestamp>.csv*
 
 This provides a permanent audit trail.
 
-=========================================================
 
-Running the main pipeline
+
+### Running the main pipeline
 
 From the main/ workflows directory:
-SESSION="$(date -u '+%Y-%m-%d %H:%M:%S')"
 
+*SESSION="$(date -u '+%Y-%m-%d %H:%M:%S')"
 digdag run main.dig \
-  --session "$SESSION"
+  --session "$SESSION"*
 
   Notes:
   	•	each session produces a new run
   	•	re-running does not overwrite data
   	•	previous runs remain queryable
 
-=======================================================
 
-Design guarantees
+
+## Design guarantees
 
 This pipeline provides:
 	•	✅ immutable historical snapshots
@@ -236,9 +236,9 @@ This pipeline provides:
 
 Infrastructure (Trino + Hive) can be destroyed and rebuilt at any time without touching the data.
 
-=======================================================
 
-What this pipeline is not
+
+## What this pipeline is not
 	•	not overwrite-based ETL
 	•	not “latest-only” ingestion
 	•	not fragile filesystem scripting
@@ -246,9 +246,9 @@ What this pipeline is not
 
 It behaves like a real lakehouse ingestion system.
 
-========================================================
 
-Relationship with the history pipeline
+
+## Relationship with the history pipeline
 
 The main pipeline produces data.
 
@@ -263,9 +263,9 @@ History depends on main.
 
 That separation is intentional.
 
-====================================================
 
-Legal note
+
+## Legal note
 
 Discogs data is subject to Discogs licensing terms.
 
