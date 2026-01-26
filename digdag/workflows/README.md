@@ -151,7 +151,7 @@ Each entity is written independently.
 
 ### 4. Warehouse build
 
-Derived analytical tables are generated:
+Derived analytical tables are generated
 	•	artist_name_map_v1
 	•	release_artists_v1
 	•	release_label_xref_v1
@@ -163,7 +163,7 @@ These tables are optimized for analytics, not raw storage.
 
 ### 5. Run-level sanity checks
 
-Before promotion, filesystem-level checks are executed:
+Before promotion, filesystem-level checks are executed
 	•	required datasets exist
 	•	directories are not empty
 	•	structural integrity
