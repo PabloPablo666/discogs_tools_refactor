@@ -291,11 +291,10 @@ It exists purely for history, validation, comparison, and analytics.
 
 
 ## Current Status
-
-✔ stable registry
-✔ validated schemas
-✔ KPI v1 complete
-✔ CSV reporting working
-✔ ready for KPI v2 (style / genre / label analytics)
+  ✔ stable registry
+  ✔ validated schemas
+  ✔ KPI v1 complete
+  ✔ CSV reporting working
+  ✔ ready for KPI v2 (style / genre / label analytics)
 
 This pipeline provides a clean historical backbone for Discogs data evolution analysis.
