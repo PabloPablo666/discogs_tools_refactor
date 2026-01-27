@@ -153,11 +153,11 @@ When to use
 
 Example:
 
-**SESSION="$(date -u '+%Y-%m-%d %H:%M:%S')"
+SESSION="$(date -u '+%Y-%m-%d %H:%M:%S')"
 
 digdag run register_run_schema.dig \
   -p run_id=2025-12__20260120_194923 \
-  --session "$SESSION"**
+  --session "$SESSION"
 
  ### 2. reconcile_register
 
