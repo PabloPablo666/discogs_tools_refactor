@@ -1,8 +1,8 @@
-Discogs History Pipeline (Digdag)
+# Discogs History Pipeline (Digdag)
 
-======================================
 
-Overview
+
+## Overview
 
 This pipeline manages historical Discogs dumps already ingested into the data lake.
 
@@ -21,44 +21,43 @@ Its purpose is to:
 This pipeline does not ingest data.
 
 It operates only on existing runs located under:
-$DISCOGS_DATA_LAKE/_runs/<run_id>
+*$DISCOGS_DATA_LAKE/_runs/<run_id>*
 
 with one active run pointed by:
-$DISCOGS_DATA_LAKE/active -> _runs/<run_id>
+*$DISCOGS_DATA_LAKE/active -> _runs/<run_id>*
 
-=====================================
 
-Core Concepts
+## Core Concepts
 
-1)Run
+### 1)Run
 
 A run represents a full Discogs dump and follows the naming convention:
-YYYY-MM__YYYYMMDD_HHMMSS
+*YYYY-MM__YYYYMMDD_HHMMSS*
 
 Example:
-2025-12__20260120_194923
+*2025-12__20260120_194923*
 
-2)Active Run
+### 2)Active Run
 
 The active dataset is selected via symlink:
-active -> _runs/<run_id>
+*active -> _runs/<run_id>*
 
 The history pipeline never modifies the active run.
 
-3)Trino schemas
+### 3)Trino schemas
 
 Each historical run has its own dedicated schema:
-discogs_r_<run_id with '-' replaced by '_'>
+*discogs_r_<run_id with '-' replaced by '_'>*
 
 Example:
-discogs_r_2025_12__20260120_194923
+*discogs_r_2025_12__20260120_194923*
 
 The schema discogs (without suffix) is reserved for the active run only.
 
-=========================================
 
-Pipeline Structure
 
+## Pipeline Structure
+```text
 history/
 ├── register_run_schema.dig
 ├── reconcile_register.dig
@@ -66,15 +65,15 @@ history/
 ├── compute_kpis.dig
 ├── export_history_csv.dig
 └── README.md
+```
 
-=========================================
 
-Registry Objects
+## Registry Objects
 
 Schema:
-hive.discogs_history
+*hive.discogs_history*
 
-run_registry_events (append-only)
+*run_registry_events* (append-only)
 
 Event log describing the lifecycle of each run.
 
@@ -86,7 +85,7 @@ Tracks:
 
 This table is append-only and never updated.
 
-run_registry_latest (VIEW)
+*run_registry_latest* (VIEW)
 
 Derived view exposing the current state of each run.
 
@@ -107,16 +106,16 @@ Each row represents:
 	•	computed at a specific time
 
 
-kpi_snapshot_latest (VIEW)
+*kpi_snapshot_latest* (VIEW)
 
 View selecting the latest valid KPI value per run and KPI name.
 
 This view is used for reporting and CSV export.
 
-===============================================
 
-Logical Flow
 
+## Logical Flow
+```text
 _runs/
    ↓
 register_run_schema
@@ -128,14 +127,14 @@ update_run_registry
 compute_kpis
    ↓
 export_history_csv
-
+```
 All steps are idempotent and can be safely re-executed.
 
-===================================================
 
-Workflow Details
 
-1. register_run_schema
+## Workflow Details
+
+### 1. register_run_schema
 
 Purpose
 
@@ -149,11 +148,11 @@ When to use
 
 Example:
 
-SESSION="$(date -u '+%Y-%m-%d %H:%M:%S')"
+**SESSION="$(date -u '+%Y-%m-%d %H:%M:%S')"
 
 digdag run register_run_schema.dig \
   -p run_id=2025-12__20260120_194923 \
-  --session "$SESSION"
+  --session "$SESSION"**
 
   2. reconcile_register
 
