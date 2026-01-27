@@ -31,7 +31,7 @@ It ships deterministic code that produces versioned datasets.
 
 
 ## High-level architecture
-
+```text
 Discogs XML dumps
         ↓
 Streaming ingestion pipelines
@@ -47,7 +47,7 @@ Promotion (atomic pointer switch)
 Post-promotion Trino sanity report
 
 Each execution is isolated in its own run directory.
-
+```
 
 
 
