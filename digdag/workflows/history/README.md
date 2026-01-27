@@ -78,6 +78,7 @@ Schema:
 Event log describing the lifecycle of each run.
 
 Tracks:
+
 	•	detection of runs
 	•	schema completeness
 	•	active exclusion
