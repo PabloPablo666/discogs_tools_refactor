@@ -14,7 +14,8 @@ Infrastructure (Trino + Hive Metastore) lives in a separate repository.
 
 ## What this repository is
 
-A production-style data pipeline system that:
+A production-style data pipeline system that
+
 	•	ingests Discogs XML dumps via streaming parsers
 	•	produces typed Parquet datasets
 	•	validates outputs with automated tests
