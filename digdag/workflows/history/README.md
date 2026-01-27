@@ -91,6 +91,7 @@ This table is append-only and never updated.
 Derived view exposing the current state of each run.
 
 This is the authoritative source used by:
+
 	•	KPI computation
 	•	reporting
 	•	historical comparisons
@@ -102,6 +103,7 @@ kpi_snapshot_events (append-only)
 Append-only log of KPI computation results.
 
 Each row represents:
+
 	•	one KPI
 	•	for one run
 	•	computed at a specific time
@@ -137,14 +139,16 @@ All steps are idempotent and can be safely re-executed.
 
 ### 1. register_run_schema
 
-Purpose
+**Purpose**
 
 Registers a single run in Trino by creating:
+
 	•	dedicated schema
 	•	external tables
 	•	compatibility views
 
 When to use
+
 	•	immediately after parsing a new dump
 
 Example:
@@ -155,11 +159,12 @@ digdag run register_run_schema.dig \
   -p run_id=2025-12__20260120_194923 \
   --session "$SESSION"**
 
-  2. reconcile_register
+ ### 2. reconcile_register
 
-Purpose
+**Purpose**
 
 Automatically scans all runs under _runs/ and:
+
 	•	excludes active
 	•	checks required datasets
 	•	verifies sentinel table (releases_ref_v6)
@@ -169,6 +174,7 @@ No tables are created.
 This step is observational only.
 
 Outputs
+
 	•	appends events to run_registry_events
 	•	updates run_registry_latest view
 
@@ -179,24 +185,26 @@ SESSION="$(date -u '+%Y-%m-%d %H:%M:%S')"
 digdag run reconcile_register.dig \
   --session "$SESSION"
 
-  3. update_run_registry
+ ### 3. update_run_registry
 
   (Integrated in reconcile logic)
 
   Maintains a full append-only audit trail of run validation events.
 
   Used for:
+  
   	•	debugging
   	•	traceability
   	•	historical reconstruction
 
-  4. compute_kpis
+ ### 4. compute_kpis
 
   Purpose
 
   Computes quantitative KPIs for each valid historical run.
 
   Examples:
+  
   	•	number of releases
   	•	number of artists
   	•	number of labels
@@ -206,6 +214,7 @@ digdag run reconcile_register.dig \
   	•	xref-derived metrics
 
   KPIs are:
+  
   	•	computed via Trino
   	•	stored as events
   	•	consolidated through kpi_snapshot_latest
@@ -214,7 +223,7 @@ digdag run reconcile_register.dig \
 
   SESSION="$(date -u '+%Y-%m-%d %H:%M:%S')"
 
-digdag run compute_kpis.dig \
+  digdag run compute_kpis.dig \
   --session "$SESSION"
 
   Safe mode for a single run:
@@ -223,21 +232,23 @@ digdag run compute_kpis.dig \
   -p only_run_id=2025-12__20260120_194923 \
   --session "$SESSION"
 
-  5. export_history_csv
+  ### 5. export_history_csv
 
-  Purpose
+  **Purpose**
 
   Exports consolidated KPI data into CSV files.
 
   Two outputs are generated:
+  
   	•	long format (one row per KPI)
   	•	wide format (one row per run)
 
   Default output directory:
 
-  _meta/discogs_history/reports/
+  *_meta/discogs_history/reports/*
 
   Files:
+  
 	•	history_kpis_long_latest.csv
 	•	history_kpis_wide_latest.csv
 
@@ -254,9 +265,9 @@ digdag run export_history_csv.dig \
   -p with_timestamp=true \
   --session "$SESSION"
 
-===================================================
 
-Design Principles
+
+## Design Principles
 	•	append-only architecture
 	•	no UPDATE statements
 	•	no destructive operations
@@ -266,9 +277,9 @@ Design Principles
 
 Every workflow can be safely rerun.
 
-====================================================
 
-What This Pipeline Does NOT Do
+
+## What This Pipeline Does NOT Do
 	•	no dump download
 	•	no XML parsing
 	•	no ingestion
@@ -277,9 +288,9 @@ What This Pipeline Does NOT Do
 
 It exists purely for history, validation, comparison, and analytics.
 
-===================================================
 
-Current Status
+
+## Current Status
 
 ✔ stable registry
 ✔ validated schemas
