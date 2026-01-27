@@ -222,6 +222,7 @@ digdag run main.dig \
   --session "$SESSION"*
 
   Notes:
+  
   	•	each session produces a new run
   	•	re-running does not overwrite data
   	•	previous runs remain queryable
