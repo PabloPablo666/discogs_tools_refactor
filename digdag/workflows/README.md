@@ -216,10 +216,10 @@ This provides a permanent audit trail.
 
 From the main/ workflows directory:
 
-*SESSION="$(date -u '+%Y-%m-%d %H:%M:%S')"
+SESSION="$(date -u '+%Y-%m-%d %H:%M:%S')"
 
 digdag run main.dig \
-  --session "$SESSION"*
+  --session "$SESSION"
 
   Notes:
   
