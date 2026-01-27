@@ -54,6 +54,7 @@ Example:
 *2026-01__20260120_205549*
 
 Each run is:
+
 	•	immutable
 	•	reproducible
 	•	queryable later
@@ -69,6 +70,7 @@ Instead, a symbolic link defines the active dataset:
 *hive-data/active -> _runs/<run_id>*
 
 This provides:
+
 	•	zero-downtime publishing
 	•	instant rollback
 	•	stable Trino table locations
